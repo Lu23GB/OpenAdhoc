@@ -1,0 +1,378 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+module ROOT
+{
+    #include "RaceEntryData.ad"
+    
+    hidden.visible = false;
+
+    static sArgs;
+
+    attribute is_bspec_;
+
+    method open(context, is_bspec = false)
+    {
+        sArgs = is_bspec;
+        SequenceUtil::startPage(context, self);
+    }
+
+    method close(context)
+    {
+        GTModeRoot.open(context);
+    }
+
+    method onInitialize(context)
+    {
+        if (sArgs != nil)
+        {
+            self.is_bspec = sArgs;
+            sArgs = nil;
+        }
+
+        if (PROJECT.history['ABspecEventRoot::isBspec'] != nil)
+        {
+            self.is_bspec = PROJECT.history['ABspecEventRoot::isBspec'];
+            PROJECT.history['ABspecEventRoot::isBspec'] = nil;
+        }
+
+        var event_categories = ["BEGINNER", "AMATEUR", "PROFESSIONAL", "EXPERT", "EXTREME", "ENDURANCE"];
+        if (!self.is_bspec_)
+        {
+            foreach (var category in event_categories)
+            {
+                var need_level = ABspecUtil::getMinimumNeedLevel(ABspecUtil::ASPEC_CATEGORY[category], false);
+                if (GAME_STATUS.user_profile.getAspecLevel() >= need_level)
+                {
+                    BGBase.image_path = "image/gt5/ABspec/bg_aspec_%s.dds".format(category.downcase());
+                    break;
+                }
+            }
+
+            BG::spec.image_path = "image/gt5/test/event_Aspec.dds";
+        }
+        else
+        {
+            foreach (var category in event_categories)
+            {
+                var need_level = ABspecUtil::getMinimumNeedLevel(ABspecUtil::BSPEC_CATEGORY[category], false);
+                if (GAME_STATUS.user_profile.getBspecLevel() >= need_level)
+                {
+                    BGBase.image_path = "image/gt5/ABspec/bg_bspec_%s.dds".format(category.downcase());
+                    break;
+                }
+            }
+
+            BG::spec.image_path = "image/gt5/test/event_Bspec.dds";
+        }
+
+        setupBaseColor(context);
+        CategorySelect.initialize(context);
+        CategorySelect.hide(context, true);
+
+        Drivers.initialize(true);
+        Dreivers.hide(context, true);
+
+        GameSelect.hide(context, true);
+
+        GameDetail.hide(context, true);
+
+        HeaderGT5::HBox::AspecLevel.visible = !self.is_bspec_;
+        HeaderGT5::HBox::BspecLevel.visible = self.is_bspec_;
+
+        GameDetail::Info::HBox::DriverList.visible = self.is_bspec_;
+
+        var cp = main::GAME_STATUS.user_profile.garage.getRidingCar();
+        if (cp == nil)
+        {
+            PROJECT.history['ABspecEventRoot::GameID'] = nil;
+            PROJECT.history['ABspecEventRoot::EventID'] = nil;
+            close(context);
+            return;
+        }
+
+        var game_id = PROJECT.history['ABspecEventRoot::GameID'];
+        var event_id = PROJECT.history['ABspecEventRoot::EventID'];
+        if (game_id == nil || event_id == nil)
+        {
+            var focus_index = CategorySelect.getFocusIndex(context);
+            CategorySelect.appear(context, false);
+        }
+        else
+        {
+            var file_id = ABspecUtil::getFileId(game_id, self.is_bspec_);
+            GameDetail.setGame(context, game_id, file_id, event_id);
+            GameDetail.appear(context, false);
+            PROJECT.history['ABspecEventRoot::GameID'] = nil;
+            PROJECT.history['ABspecEventRoot::EventID'] = nil;
+        }
+
+        SoundUtil::MenuBGMCrossfadeGroup("menu", 0.0, 3.0, true);
+        
+        context.pushEvent(main::menu::MFunctionEvent(openModeIntroduction, context));
+        context.pushEvent(menu::MScriptEvent(ABspecEventRoot, context, "postInitialize"));
+
+        ROOT.setFocus(CategorySelect.getFocusWidget());
+    }
+
+    method openModeIntroduction(context)
+    {
+        var mode = !self.is_bspec ? "ASPEC_EVENT" : "BSPEC_EVENT";
+        if (GAME_STATUS.user_profile.game_flags.getFlag("INTRODUCTION", mode))
+        {
+            context.wait(0.5);
+
+            DialogUtil::openInformationDialog(context, context.translate(ROOT, "IntroductionGT5", mode));
+            GAME_STATUS.user_profile.game_flags.setFlag("INTRODUCTION", mode, true);
+        }
+    }
+
+    method postInitialize(context)
+    {
+        SaveDataUtilGT5::checkSaveEveryWhere(context);
+    }
+
+    method setupBaseColor(context)
+    {
+        var color_obj;
+        if (!self.is_bspec_)
+            color_obj = hidden::ABspecBaseColors::Aspec.getColor(0);
+        else
+            color_obj = hidden::ABspecBaseColors::Bspec.getColor(0);
+
+        BG::SlideBG1::red.setColor(color_obj);
+        BG::line_red::ColorFace.setColor(color_obj);
+        BG::line_red2.setColor(color_obj);
+        BG::Category::ColorFace_top.setColor(color_obj);
+        BG::Category::ColorFace.setColor(color_obj);
+        BG::Category::ColorFace_bottom.setColor(color_obj);
+        GameDetail::ThumbBig::SBox::Cover::red.setColor(color_obj);
+        hidden::GameSelectItem::Flyer::Cover::red1.setColor(color_obj);
+        hidden::GameSelectItem::Flyer::Cover::red2.setColor(color_obj);
+        
+        for (var it = CategorySelect::VBox.first; it != nil; it = it.next_widget)
+        {
+            var base = it.Composite::Base;
+            base.ColorFace_top.setColor(color_obj);
+            base.ColorFace.setColor(color_obj);
+            base.ColorFace_bottom.setColor(color_obj);
+        }
+    }
+
+    method getRecordInstance()
+    {
+        if (!self.is_bspec_)
+            return GAME_STATUS.user_profile.record.aspec_race;
+        else
+            return GAME_STATUS.user_profile.record.bspec_race;
+    }
+
+    method caniEnter(need_level)
+    {
+        if (!ROOT.isBspec())
+        {
+            var level = GAME_STATUS.user_profile.getAspecLevel();
+            return need_level <= level;
+        }
+        else
+        {
+            var level = GAME_STATUS.user_profile.getBspecLevel();
+            return need_level <= level;
+        }
+    }
+
+    method getRecordInstance()
+    {
+        if (!self.is_bspec_)
+            return ABspecUtil::initializeAspecRecord();
+        else
+            return ABspecUtil::initializeBspecRecord();
+    }
+
+    method updateEventResult(event_id, result)
+    {
+        var event_record = getRecordInstance();
+        event_record.updateEventResult(event_id, result);
+    }
+
+    method updateGameResult(game_id, result)
+    {
+        var event_record = getRecordInstance();
+        event_record.updateGameResult(game_id, result);
+    }
+
+    method getGameResult(game_id)
+    {
+        var event_record = getRecordInstance();
+        return event_record.getGameResult(event_id);
+    }
+
+    method getEventResult(event_id)
+    {
+        var event_record = getRecordInstance();
+        return event_record.getEventResult(event_id);
+    }
+
+    method loadGP(file_id, game_id)
+    {
+        var path;
+        if (!ROOT.isBspec())
+            path = "textdata/gt5/aspec_race/r%{file_id}.xml";
+        else
+            path = "textdata/gt5/bspec_race/r%{file_id}.xml";
+
+        var fst = pdistd::ReadFile(path);
+        var buf = fst["buffer"];
+        if (buf)
+        {
+            var gp_list = GameParameterUtil::parseXML(buf);
+            var gp = gp_list[0];
+            gp.game_id = game_id;
+
+            for (var i = 0; i < gp.events.size; i++)
+            {
+                gp.events[i].event_id = ABspecUtil::getEventId2(game_id, i);
+            }
+
+            return gp;
+        }
+
+        return nil;
+    }
+
+    function checkRegulation(context, gp, view_only, cp, dp)
+    {
+        if (cp == nil)
+        {
+            cp = GAME_STATUS.user_profile.garage.riding_car;
+        }
+
+        if (dp == nil)
+        {
+            dp = GAME_STATUS.user_profile.residence.getPlayer(0);
+        }
+        
+        var regulation = gp.event.regulation;
+        return regulation.checkIfQualifiedCar(cp, !view_only);
+    }
+
+    function goRaceSequence(context, gp)
+    {
+        main::sound.play("next");
+        GameParameterUtil::executeEvent(context, gp, GAME_STATUS);
+    }
+
+    function startEventRace(context, gp, event_id, is_bspec)
+    {
+        if (is_bspec)
+        {
+            GLOBAL_STATUS.user_profile.residence.clearEntryDrivers();
+
+            var regulation = gp.event.regulation;
+            var need_driver_count = regulation.need_bspec_driver_count > 0 ? regulation.need_bspec_driver_count : 1;
+            var limit_driver_count = regulation.limit_bspec_driver_count > 0 ? regulation.limit_bspec_driver_count : 1;
+            if (limit_driver_count > 4)
+                limit_driver_count = 4;
+
+            var residence_ids;
+            {
+                var mode = UserProfileProject::DriverPopup::Mode::ENTRY;
+                var mode_param = ["max_count": limit_driver_count, "need_count": need_driver_count];
+                residence_ids = UserProfileProject::DriverPopup.open(context, mode, mode_param);
+            }
+
+            if (residence_ids != nil)
+            {
+                foreach (var residence_id in residence_ids)
+                {
+                    GLOBAL_STATUS.user_profile.residence.addEntryDriver(residence_id);
+                }
+            }
+
+            return false;
+        }
+        
+        // Save state
+        PROJECT.history['ABspecEventRoot::isBspec'] = ROOT.isBspec();
+        PROJECT.history['ABspecEventRoot::EventID'] = event_id;
+        PROJECT.history['ABspecEventRoot::GameID'] = gp.game_id;
+        PROJECT.history['LastPageName'] = ROOT.name;
+
+        var eevnt_index = gp.event_inex;
+        if (gp.championship)
+            event_index = -1;
+
+        var strlog;
+        if (is_bspec)
+            strlog = "GB=%d:GI=%d:GU=%s".format(gp.game_id, event_index, main::PDINetwork.getClientName());
+        else
+            strlog = "GA=%d:GI=%d:GU=%s".format(gp.game_id, event_index, main::PDINetwork.getClientName());
+
+        if (gp.championship)
+        {
+            GAME_STATUS.user_profile.context.startChampionShip(event_id, gp);
+            ROOT.goRaceSequence(context, GAME_STATUS.user_profile.context.playing_gp);
+        }
+        else
+        {
+            ROOT.goRaceSerquence(context, gp);
+        }
+    }
+
+    method isBspec()
+    {
+        return self.is_bspec_;
+    }
+
+    method onKeyPress(context, event)
+    {
+        if (!ROOT::GameDetail.insensitive)
+        {
+            if (event.keysym == CELL_PAD_CTRL_SQUARE)
+            {
+                if (ROOT::GameDetail::Info::HBox::Garage.visible)
+                {
+                    return ROOT::GameDetail::Info::HBox::Garage.onActivate(context);
+                }
+            }
+
+            if (event.keysym == CELL_PAD_CTRL_TRIANGLE)
+            {
+                if (ROOT::GameDetail::Info::HBox::DriverList.visible)
+                {
+                    return ROOT::GameDetail::Info::HBox::DriverList.onActivate(context);
+                }
+            }
+        }
+
+        return EVENTRESULT_CONTINUE;
+    }
+
+    module ROOT::MyHome
+    {
+        attribute cancel_cb_func_;
+
+        method appear(context, warp)
+        {
+            self.insensitive = false;
+            self.FadeActor.reverse = false;
+            self.FadeActor.start();
+
+            if (warp)
+            {
+                self.FadeActor.warp();
+            }
+        }
+    }
+}
