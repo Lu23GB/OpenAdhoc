@@ -1186,16 +1186,16 @@ module GTModeProjectComponent::HDSlider2::slider
 
         if (pdiext::MSystemConfiguration::isSDTV())
         {
-            label.scale_x = 2.4;
-            label.scale_y = 2.4;
-            labeli.scale_x = 2.4;
-            labeli.scale_y = 2.4;
-            pup.min.scale_x = 2.4;
-            pup.min.scale_y = 2.4;
-            pup.max.scale_x = 2.4;
-            pup.max.scale_y = 2.4;
-            pup.Value.label.scale_x = 2.4;
-            pup.Value.label.scale_y = 2.4;
+            label.scale_x = 2.6;
+            label.scale_y = 2.6;
+            labeli.scale_x = 2.6;
+            labeli.scale_y = 2.6;
+            pup.min.scale_x = 2.6;
+            pup.min.scale_y = 2.6;
+            pup.max.scale_x = 2.6;
+            pup.max.scale_y = 2.6;
+            pup.Value.label.scale_x = 2.6;
+            pup.Value.label.scale_y = 2.6;
             pup.Value.label.adjust_scale = false;
             pup.base.pack_fill_x = false;
             pup.min.adjust_scale = false;
@@ -1274,11 +1274,6 @@ module GTModeProjectComponent::HDSlider2::slider
         return q == 0.0;
     }
 
-    method call_format_func(context, value)
-    {
-        return self.format_callback(context, value, self);
-    }
-
     method setup(context, dummy0, dummy1, dummy2)
     {
         if (self.format_callback == nil)
@@ -1317,6 +1312,11 @@ module GTModeProjectComponent::HDSlider2::slider
         self.label.text = text;
         if (self.defined('labeli'))
             self.labeli.text = text;
+    }
+
+    method call_format_func(context, value)
+    {
+        return self.format_callback(context, value, self);
     }
 
     method sliderPopupOpen(context)
@@ -1363,6 +1363,8 @@ module GTModeProjectComponent::RaceMenu::Template::SBox0::ScalarInterpolator
     {
         if (ScalarInterpolator.reverse)
             SBox0.visible = false;
+
+        RaceMenuUtil::onEffectEnd_Sbox0ScalarInterpolator(context);
     }
 }
 
@@ -1389,7 +1391,12 @@ module GTModeProjectComponent::RaceMenu::Template::SBox0::SBox1::ListBox
     }
 }
 
-module GTTopProjectComponent::OptionMenuFrame::Template
+module GTModeProjectComponent::RaceMenu::Template::Item
+{
+    attribute icon;
+}
+
+module GTModeProjectComponent::OptionMenuFrame::Template
 {
     method onInitialize(context)
     {
@@ -1531,7 +1538,7 @@ module GTModeProjectComponent::OptionMenuFrame::Template::Buttons::CancelOK::OK
     }
 }
 
-module GTTopProjectComponent::FinderItem
+module GTModeProjectComponent::FinderItem
 {
     method _set_car_info(context, item_w, car, garage_id, car_image_size, tuner_logo_size)
     {
@@ -1892,7 +1899,7 @@ module GTModeProjectComponent::FinderItem::CarList
     }
 }
 
-module GTModeProjectComponent::FinderItem::CarList
+module GTModeProjectComponent::FinderItem::CarDetail
 {
     attribute invalid;
 
@@ -1908,21 +1915,19 @@ module GTModeProjectComponent::FinderItem::CarList
 
 module GTModeProjectComponent::FinderItem::CourseThumb
 {
-    attribute invalid;
-
     method setInfo(context, car, garage_id)
     {
-        FinderItem._set_car_info(context, self, car, garage_id, "M", "S");
+        FinderItem._set_course_info(context, self, car, "M", "S");
     }
 
     method setEditCourseInfo(context, edit_course_data)
     {
-        FnderItem._set_edit_course_info(context, self, edit_course_data);
+        FinderItem._set_edit_course_info(context, self, edit_course_data);
     }
 
     method resetInfo(context)
     {
-        FinderItem._reset_car_info(context, self);
+        FinderItem._reset_course_info(context, self);
     }
 
     method setWeatherAndDatetime(context, decisive_weather, datetime_hour)
@@ -1957,6 +1962,7 @@ module GTModeProjectComponent::FinderItem::BspecDriver
         self.TextFace.visible = true;
         self.ImageFace.visible = false;
         self.Bar.visible = false;
+        self.Condition.visible = false;
         self.Performance.visible = false;
         self.online.visible = false;
     }
@@ -1975,7 +1981,7 @@ module GTModeProjectComponent::FinderItem::BspecDriver
     {
         if (self.dp_ != nil)
         {
-            var root = cotnext.getRootWindow();
+            var root = context.getRootWindow();
             if (root["BalloonTip"] != nil)
                 root["BalloonTip"].set_value(context, self, self.dp_.display_name, 38);
         }
@@ -1987,7 +1993,7 @@ module GTModeProjectComponent::FinderItem::BspecDriver
     {
         if (self.dp_ != nil)
         {
-            var root = cotnext.getRootWindow();
+            var root = context.getRootWindow();
             if (root["BalloonTip"] != nil)
                 root["BalloonTip"].reset_value();
         }
@@ -2005,13 +2011,14 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
         {
             Body::ImageFaceCombo::Head.image_path = "";
             Body::ImageFaceCombo::Body.image_path = "";
+            Body::ImageFaceCondition.image_path = "";
             Body.visible = false;
             Empty.visible = true;
         }
         else
         {
             Empty.visible = false;
-            Body::Online.visible = online = true;
+            Body::Online.visible = online == true;
             Body::TextFaceName.text = dp.display_name;
 
             var avatar_helmet_id = dp.head_color_code;
@@ -2048,9 +2055,9 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
                 dp.head_code, dp.head_color_code, dp.body_code, dp.body_color_code
             );
 
-            var condition = dp.growth_parameter;
+            var condition = dp.growth_parameter.condition;
             var condition_id = 2;
-            if (condition > 2)
+            if (condition > 8)
                 condition_id = 1;
             else if (condition < -8)
                 condition_id = 3;
@@ -2059,7 +2066,7 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
             Body::ImageFaceCondition.image_path = "piece/driver_condition/%{condition_id}.img";
 
             var width = Body::Level::Bar::Progress::bar::ColorFace.w;
-            var current_level = dp.growth_parameter.level;
+            var current_level = dp.growth_parameter.lv;
             Body::Level::Value::TextFace.text = current_level;
 
             var current_point = GAME_STATUS.user_profile.getCurrentPoint(dp.growth_parameter.experience);
@@ -2088,7 +2095,7 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
 
             // bar3
             {
-                var info = ABspecUtil::getBSpecDisplayStatusData(dp, true);
+                var info = ABspecUtil::getBSpecDisplayStatusData(dp);
                 var [speed, vital, mental, career, heat, brake, corner, line] = info;
                 var keys = ["Speed", "Vital", "Mental", "Career"];
                 var values = [speed, vital, mental, career];
@@ -2100,7 +2107,7 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
                 }
             }
 
-            var result_text = context.translate(cotnext.getRootWindow(), "Driver", "RESULT_FORMAT").build(dp.growth_parameter.win_count, dp.growth_parameter.race_count);
+            var result_text = context.translate(context.getRootWindow(), "Driver", "RESULT_FORMAT").build(dp.growth_parameter.win_count, dp.growth_parameter.race_count);
             Body::Result::TextFace.text = result_text;
 
             if (pdiext::isQABuild())
@@ -2115,9 +2122,9 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
 
             if (exp > 0 && entried)
             {
-                current_exp = dp.growth_parameter.experience;
+                var current_exp = dp.growth_parameter.experience;
                 current_level = dp.growth_parameter.lv;
-                need_exp_for_next = GAME_STATUS.user_profile.getPointForNextLevel();
+                need_exp_for_next = GAME_STATUS.user_profile.getPointForNextLevel(current_level);
                 var next_exp = current_exp.toULong() + exp;
                 if (next_exp > UINT_MAX)
                     next_exp = UINT_MAX;
@@ -2138,7 +2145,7 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
                     dp.growth_parameter.win_count++;
                 }
 
-                var result_text = context.translate(cotnext.getRootWindow(), "Driver", "RESULT_FORMAT").build(dp.growth_parameter.win_count, dp.growth_parameter.race_count);
+                var result_text = context.translate(context.getRootWindow(), "Driver", "RESULT_FORMAT").build(dp.growth_parameter.win_count, dp.growth_parameter.race_count);
                 Body::Result::TextFace.text = result_text;
                 
                 var ratio = next_point.toFloat() / need_exp_for_next;
@@ -2163,13 +2170,13 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
                     ActionLogUtil::driver(dp.display_name, next_level);
                 }
 
-                GAME_STATUS.user_profile.residence.setBSpecDriver(dp.residence_id, dp);
+                GLOBAL_STATUS.user_profile.residence.setBSpecDriver(dp.residence_id, dp);
                 Body::Level::Bar::Progress::bar2::ScalarInterpolator.setEndValue(0, width * ratio);
                 Body::Level::Bar::Progress::bar2::ScalarInterpolator.restart();
 
                 // bar2
                 {
-                    var info = ABspecUtil::getBSpecDisplayStatusData(dp, true);
+                    var info = ABspecUtil::getBSpecDisplayStatusData(dp);
                     var [speed, vital, mental, career, heat, brake, corner, line] = info;
                     var keys = ["Speed", "Vital", "Mental", "Career"];
                     var values = [speed, vital, mental, career];
@@ -2184,6 +2191,19 @@ module GTModeProjectComponent::FinderItem::BspecDriverL
                 Body.visible = true;
             }
         }
+    }
+}
+
+module GTModeProjectComponent::MyHome::Popup::Pane::Header
+{
+    method setText(context, text_list)
+    {
+        var [text, count, show_capacity] = text_list;
+        HBox::TextFace.text = text;
+        HBox::TextFaceCount.text = count;
+        HBox::TextFace0.visible = show_capacity;
+        HBox::TextFaceRemain.visible = show_capacity;
+        HBox::TextFaceRemain.text = UnitUtil::getDiskSizeString(context, pdistd::GetDiskFreeSize("/APP_DATA"));
     }
 }
 

@@ -19,6 +19,8 @@ function checkFirstOfAll(context)
 {
     var need_save = false;
     if (!GAME_STATUS.user_profile.game_flags.getFlag("USER_STATUS", "GET_FIRST_CAR"))
+        ;
+    else
     {
         if (EventPresentUtil::getTryRacingMessageFlag())
         {
@@ -49,14 +51,14 @@ function checkEnding1(context)
     if (!show_movie)
     {
         show_movie = !EventPresentUtil::getEnding1MoveGetFlag() &&
-            GAME_STATUS.user_profile.game_flags.getFlag("GTTV_PLAYABLE_MOVIES", "ENDING1");
+            !GAME_STATUS.user_profile.game_flags.getFlag("GTTV_PLAYABLE_MOVIES", "ENDING1");
     }
 
     var skip_next = false;
     if (show_movie)
     {
-        DialogUtil::openInformationDialog(context, context.translate(ROOT, "MESSAGE_REACH_THE_ENDING_MOVIE_1",
-            nil, EventPresentUtil::info_image_path));
+        DialogUtil::openInformationDialog(context, context.translate(ROOT, "MESSAGE_REACH_THE_ENDING_MOVIE_1"),
+            nil, EventPresentUtil::info_image_path);
 
         var tvid = GTTVOffline::getTvId("ending1");
         var tv = tvid["tv"];
@@ -79,22 +81,22 @@ function checkEnding2(context)
     var show_movie = false;
     if (!show_movie)
     {
-        show_movie = !EventPresentUtil::getEnding1MoveGetFlag() &&
-            GAME_STATUS.user_profile.game_flags.getFlag("GTTV_PLAYABLE_MOVIES", "ENDING2");
+        show_movie = !EventPresentUtil::getEnding2MoveGetFlag() &&
+            !GAME_STATUS.user_profile.game_flags.getFlag("GTTV_PLAYABLE_MOVIES", "ENDING2");
     }
 
     var skip_next = false;
     if (show_movie)
     {
-        DialogUtil::openInformationDialog(context, context.translate(ROOT, "MESSAGE_REACH_THE_ENDING_MOVIE_2",
-            nil, EventPresentUtil::info_image_path));
+        DialogUtil::openInformationDialog(context, context.translate(ROOT, "MESSAGE_REACH_THE_ENDING_MOVIE_2"),
+            nil, EventPresentUtil::info_image_path);
 
         var tvid = GTTVOffline::getTvId("ending2");
         var tv = tvid["tv"];
         if (pdistd::Exist(tv["movie_path"]))
         {
             SequenceUtil::startProject(context, "play_movie", "ending2");
-            GAME_STATUS.user_profile.game_flags.setFlag("GTTV_PLAYABLE_MOVIES", "EENDING2NDING1", true);
+            GAME_STATUS.user_profile.game_flags.setFlag("GTTV_PLAYABLE_MOVIES", "ENDING2", true);
             skip_next = true;
         }
     }
@@ -115,7 +117,7 @@ function checkTrophy(context)
     var end = gtengine::TrophyType::WOMAN_PORTRAIT;
 
     var unlocked = false;
-    for (var i = begin; i <= end; i++)
+    for (var i = begin; i <= end; ++i)
     {
         var state = GAME_STATUS.user_profile.context.trophy_state_list[i];
         if (state == 0 && unlock_state[i])

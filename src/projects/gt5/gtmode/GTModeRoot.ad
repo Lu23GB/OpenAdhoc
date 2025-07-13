@@ -27,10 +27,18 @@ module PresentFunction
     { \
         main::sound.play("disable"); \
         var msg = (NP.isOnline() && PDINetwork.isChatRestricted()) ? \
-            context.translate(ROOT, "Network", "ERROR_CHAT_RESTRICTED") : \
+            context.translate(ROOT, "MyHome", "ERROR_CHAT_RESTRICTED") : \
             context.translate(ROOT, "Network", "ERROR_ONLINE_FUNCTION"); \
         \
         DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, msg); \
+        return EVENTRESULT_FILTER; \
+    }
+
+#define CHECK_CAN_ONLINE_CHAT() \
+    if (PDINetwork.isChatRestricted()) \
+    { \
+        main::sound.play("disable"); \
+        DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(ROOT, "OnlineMessage", "UNABLE_TO_CHAT_DUE_TO_RESTRICTION")); \
         return EVENTRESULT_FILTER; \
     }
 
@@ -79,6 +87,16 @@ module PresentFunction
         } \
     }
 
+#define CHECK_TIMEOUT() \
+    { \
+        var usec = ROOT.keep_interval_usec; \
+        var now = pdistd::GetSystemTimeMicroSecond(); \
+        if (now - usec < 800000) \
+            return EVENTRESULT_FILTER; \
+        else \
+            ROOT.keep_interval_usec = now; \
+    }
+
 module GTModeRoot
 {
     // Current selected online friend
@@ -100,7 +118,7 @@ module GTModeRoot
 
         function getMenuColor(index)
         {
-            return GAME_STATUS.user_profile.context.getMenuColor();
+            return GAME_STATUS.user_profile.context.getMenuColor(index);
         }
 
         function getWallpaperList()
@@ -162,8 +180,7 @@ module GTModeRoot
         attribute finder;
         attribute view_mode = 1;
 
-
-        method initializeFinder(context)
+        method finalizeFinder(context)
         {
             if (self.finder != nil)
             {
@@ -309,8 +326,7 @@ module GTModeRoot
     }
 
     // Main root methods here.
-
-    method open(context)
+    function open(context)
     {
         SequenceUtil::startPage(context, ROOT);
     }
@@ -347,7 +363,7 @@ module GTModeRoot
         switch (event.keysym)
         {
             default:
-                break;
+                ; // Fallthrough
         }
 
         return EVENTRESULT_CONTINUE;
@@ -370,7 +386,7 @@ module GTModeRoot
         }
 
         // Setup online session extension check for every 10 hours
-        if (self.extend_watcher)
+        if (self.extend_watcher == nil)
             self.extend_watcher = WatcherUtil::Create(context, onTickExtend, 10 * 60 * 60);
 
         // Set 60FPS (top menu was most likely set to 30FPS)
@@ -385,7 +401,7 @@ module GTModeRoot
 
         self.hidden.ItemGTMail::New.visible = false;
         self.hidden.ItemGTMail::TextFace.text = "";
-        self.hidden.ItemGTMail::Info::TextFace.visible = "";
+        self.hidden.ItemGTMail::Info::TextFace.text = "";
         self.hidden.ItemGTMail::Info::DateTime::TextFaceDate.text = "";
         self.hidden.ItemGTMail::Info::DateTime::TextFaceTime.text = "";
 
@@ -405,8 +421,8 @@ module GTModeRoot
         {
             Menu::MyHome::Buttons::Museum.insensitive = true;
             Menu::Friend::Buttons::Museum.insensitive = true;
-            Menu::MyHome::Buttons::Museum::iconI.insensitive = false;
-            Menu::Friend::Buttons::Museum::iconI.insensitive = false;
+            Menu::MyHome::Buttons::Museum::iconI.visible = false;
+            Menu::Friend::Buttons::Museum::iconI.visible = false;
         }
 
         extendSessionIf(context);
@@ -434,6 +450,7 @@ module GTModeRoot
 
         GTUniversePane.insensitive = true;
         PrivateLoungePane.insensitive = true;
+        StatusPane.insensitive = true;
 
         var user_id = pdistd::getPlayerName();
         Menu::MyHome::UserProfile::OnlineId.text = user_id;
@@ -515,7 +532,7 @@ module GTModeRoot
         ROOT.setFocus(focus_widget != nil ? focus_widget : ROOT::Menu::MyHome::Tab::GTUniverse);
 
         context.pushEvent(main::menu::MFunctionEvent(checkInformation, context));
-        context.pushEvent(main::menu::MScriptEvent(context, ROOT, "postInitialize"));
+        context.pushEvent(menu::MScriptEvent(context, ROOT, "postInitialize"));
 
         SoundUtil::SetSystemBGMEnable(context, true);
         SoundUtil::MenuBGMCrossfadeGroup("menu", 0.0, 3.0, true);
@@ -559,7 +576,7 @@ module GTModeRoot
 
     method updateAvatarPhoto(context)
     {
-        var avatar_photo_id = GAME_STATUS.user_profile.context.avatar_photo_id;
+        var avatar_photo_id = GLOBAL_STATUS.user_profile.context.avatar_photo_id;
         if (avatar_photo_id != 0)
         {
             var photo = PhotoFileUtil::get(avatar_photo_id);
@@ -576,6 +593,7 @@ module GTModeRoot
         if (!LoginUtil::isOnline())
             return;
 
+        var previous_cash = PROJECT.history['GTModeProject::cash'];
         var previous_exp = PROJECT.history['GTModeRoot::exp'];
         var current_exp = GAME_STATUS.user_profile.getAspecCurrentPoint() + GAME_STATUS.user_profile.getBspecCurrentPoint();
         var current_cash = GAME_STATUS.user_profile.cash;
@@ -613,7 +631,7 @@ module GTModeRoot
         {
             var aspec_dp = GAME_STATUS.user_profile.residence.referPlayer();
             UserProfile2.requestUpdateHelmet(aspec_dp.head_code, aspec_dp.head_color_code, (args) => {});
-            UserProfile2.requestUpdateWear(aspec_dp.head_code, aspec_dp.head_color_code, (args) => {});
+            UserProfile2.requestUpdateWear(aspec_dp.body_code, aspec_dp.body_color_code, (args) => {});
             UserProfile2.clearMe();
             PROJECT.history['GTModeRoot::updateDriverItem'] = false;
 
@@ -675,12 +693,12 @@ module GTModeRoot
     // Brings GTMode's initial dialogs for setup
     method checkMyHomeSetting(context)
     {
-        var myhome_setting_level = GAME_STATUS.user_profile.context.myhome_setting_level;
+        var myhome_setting_level = GLOBAL_STATUS.user_profile.context.myhome_setting_level;
         if (myhome_setting_level == 0)
         {
             INTRODUCTION(context, ROOT, "MYHOME_DRIVER");
 
-            GAME_STATUS.user_profile.context.myhome_setting_level = 1;
+            GLOBAL_STATUS.user_profile.context.myhome_setting_level = 1;
             checkMyHomeSetting(context);
             INTRODUCTION(context, ROOT, "MYHOME_FINISH");
         }
@@ -695,8 +713,8 @@ module GTModeRoot
                 return;
             }
 
-            GAME_STATUS.user_profile.context.myhome_color_id = result["color"];
-            GAME_STATUS.user_profile.context.myhome_wallpaper_id = result["wallpaper"];
+            GLOBAL_STATUS.user_profile.context.myhome_color_id = result["color"];
+            GLOBAL_STATUS.user_profile.context.myhome_wallpaper_id = result["wallpaper"];
 
             updateAvatarPhoto(context);
 
@@ -711,14 +729,14 @@ module GTModeRoot
 
             if (tryUpdateMyHomeDesign(context, result))
             {
-                GLOBAL_STATUS.user_profile.myhome_setting_level = 3;
+                GLOBAL_STATUS.user_profile.context.myhome_setting_level = 3;
                 GAME_STATUS.user_profile.context.need_save = SaveDataUtilGT5::STATUSCODE::NEED_SAVE;
                 ROOT.checkMyHomeSetting(context);
             }
             else
             {
                 Grim2.setInitialize(false);
-                GAME_STATUS.user_profile.context.myhome_setting_level = 2;
+                GLOBAL_STATUS.user_profile.context.myhome_setting_level = 2;
                 saveNow(context);
             }
         }
@@ -732,7 +750,7 @@ module GTModeRoot
             var res = SettingOnlineProfileDialog.open(context);
             if (res)
             {
-                GAME_STATUS.user_profile.context.myhome_setting_level = 4;
+                GLOBAL_STATUS.user_profile.context.myhome_setting_level = 4;
                 GAME_STATUS.user_profile.context.need_save = SaveDataUtilGT5::STATUSCODE::NEED_SAVE;
                 checkMyHomeSetting(context);
             }
@@ -740,12 +758,12 @@ module GTModeRoot
         else if (myhome_setting_level == 4)
         {
             // Useless step?
-            GAME_STATUS.user_profile.context.myhome_setting_level = 5;
+            GLOBAL_STATUS.user_profile.context.myhome_setting_level = 5;
             checkMyHomeSetting(context);
         }
         else if (myhome_setting_level == 5)
         {
-            GAME_STATUS.user_profile.context.myhome_setting_level = 6;
+            GLOBAL_STATUS.user_profile.context.myhome_setting_level = 6;
             saveNow(context);
             UserProfile2.clearMe();
         }
@@ -767,7 +785,7 @@ module GTModeRoot
         ];
 
         var color = main::menu::MColorObject(r / 255.0, g / 255.0, b / 255.0);
-        if (ROOT.active_friend)
+        if (ROOT.active_friend != nil)
         {
             Menu::Friend::UserProfile::Id::bg.setColor(color);
         }
@@ -800,7 +818,7 @@ module GTModeRoot
 
         context.disableInput();
 
-        var best_time = pdistd::GetSystemTimeMicroSecond();
+        var base_time = pdistd::GetSystemTimeMicroSecond();
         var need_update = false;
         var a_flag = ROOT.active_friend != nil;
 
@@ -824,14 +842,16 @@ module GTModeRoot
             {
                 var sakura = SAKURA_DATA[0];
                 setThemeImageColor(context, 
-                    GAME_STATUS.user_profile.context.myhome_color_id,
-                    GAME_STATUS.user_profile.myhome_wallpaper_id, 
+                    GLOBAL_STATUS.user_profile.context.myhome_color_id,
+                    GLOBAL_STATUS.user_profile.context.myhome_wallpaper_id, 
                     sakura["status"]);
 
                 var image_path = Menu::MyHome::UserProfile::Id::ImageFace.image_path;
                 PrivateLoungePane::Buttons::Focus::Paddock::ImageFace.image_path = image_path;
                 PrivateLoungePane::Children::TextFaceUserId.text = Grim2.getLoginUserId();
             }
+
+            fire(true, ROOT::bg);
 
             if (ROOT.active_pane == pane)
             {
@@ -846,7 +866,7 @@ module GTModeRoot
         if (need_update)
         {
             Menu::MyHome::ScalarInterpolator.on_effect_end = nil;
-            Title::MyHome.visible = false;
+            Title::MyHome.visible = true;
             Menu::MyHome.visible = true;
         }
 
@@ -872,7 +892,7 @@ module GTModeRoot
 
         fire(true, ROOT::bg);
 
-        showHeader(context);
+        showHeader(context, false);
 
         Menu::Friend::Message::SBox::ToolTipFace.remove();
         Menu::Friend::Message::SBox::ToolTipFace.action_type = 1;
@@ -886,8 +906,8 @@ module GTModeRoot
         else
             Menu::Friend::Message::ScalarInterpolator.reset();
 
-        Menu::Friend::Buttons::Photo.incensitive = true;
-        Menu::Friend::Buttons::Course.incensitive = true;
+        Menu::Friend::Buttons::Photo.insensitive = true;
+        Menu::Friend::Buttons::Course.insensitive = true;
 
         var user_id = user_profile["user_id"];
         Photo.requestList(user_id, (args) => 
@@ -914,18 +934,18 @@ module GTModeRoot
     }
 
     // Switch to friend profile view
-    function changeToFriend(context, pane, friend)
+    function changeToFriend(context, friend, pane)
     {
-        if (ROOT.active_pane != nil && ROOT.active_friend == nil)
+        if (ROOT.active_friend == friend)
             return;
 
         context.disableInput();
 
-        var best_time = pdistd::GetSystemTimeMicroSecond();
+        var base_time = pdistd::GetSystemTimeMicroSecond();
         var friend_to_friend = false;
-        var a_flag = ROOT.active_friend != nil;
+        var a_flag = ROOT.active_friend == nil;
 
-        if (ROOT.active_friend != nil)
+        if (ROOT.active_friend == nil)
         {
             fire(true, Menu::Friend, Title::Friend);
             fire(false, Title::ImageFace, Title::MyHome, Menu::MyHome);
@@ -958,7 +978,7 @@ module GTModeRoot
                     var [context, request] = args;
                     if (request.isDone())
                     {
-                        var u = UserProfile2.decodeUserProfile(u);
+                        var u = UserProfile2.decodeUserProfile(request);
                         var index = pdistd::MRandom::GetValue(0, 8);
                         var sakura = SAKURA_DATA[index];
                         showFriend(context, u, sakura);
@@ -972,8 +992,7 @@ module GTModeRoot
 
         if (!friend_to_friend)
         {
-            Menu::MyHome::ScalarInterpolator.on_effect_end = nil;
-            Title::MyHome.visible = false;
+            Title::MyHome.visible = true;
             Menu::MyHome.visible = true;
         }
 
@@ -993,7 +1012,7 @@ module GTModeRoot
     // BBS Stuff
     function createSampleBbs(context, gt_friend_list)
     {
-        var need_create = PROJECT::history['GTModeRoot::createSampleBbs'];
+        var need_create = PROJECT.history['GTModeRoot::createSampleBbs'];
         if (need_create == nil || !need_create)
             return;
 
@@ -1029,7 +1048,8 @@ module GTModeRoot
                 bbs_board_id = u["user_number"];
             }
 
-            friend_list[i] = ["user_id" : user_id]; 
+            friend_list[i] = ["user_id" : user_id];
+            bbs_board_id_list[i] = bbs_board_id;
         }
 
         var index = 0;
@@ -1053,7 +1073,7 @@ module GTModeRoot
             friend_list.randomShuffle();
     
             var bbs_comment_list = Array(N);
-            for (var i = 0; i < N; i++)
+            for (var i = 0; i < N; ++i)
             {
                 var friend = friend_list[i % friend_list.size];
                 var bbs_comment = [
@@ -1107,6 +1127,7 @@ module GTModeRoot
     function initializeFriendList(context, order, listbox)
     {
         listbox.order = nil;
+        listbox.order = order;
 
         var user_id = Grim2.getLoginUserId();
         var current_user = user_id;
@@ -1151,7 +1172,7 @@ module GTModeRoot
                         if (f["id"].toString() == user_profile["user_id"])
                         {
                             gt_friend_list.push(f);
-                            if (current_user == f["id"].toString())
+                            if (current_user == user_profile["user_id"])
                                 focus_index = index;
 
                             ++index;
@@ -1218,7 +1239,7 @@ module GTModeRoot
                     main::sound.play("ok");
 
                     var project = main::manager.loadProject("%{main::PROJECT_ROOT_DIR}/news/news");
-                    finally 
+                    self finally 
                     { 
                         main::manager.unloadProject(project); 
                     }
@@ -1234,7 +1255,7 @@ module GTModeRoot
                 {
                     CHECK_NOT_DEMO();
 
-                    main::sound.play("ok");
+                    sound.play("ok");
 
                     SaveDataUtilGT5::saveAutoForGame(context);
                     return EVENTRESULT_FILTER;
@@ -1305,8 +1326,8 @@ module GTModeRoot
                     CursorUtil::setCursor(context, "wait");
                     
                     var user_id = Grim2.getLoginUserId();
-                    var project = main::manager.laodProject("%{main::PROJECT_ROOT_DIR}/online/online");
-                    finally 
+                    var project = main::manager.loadProject("%{main::PROJECT_ROOT_DIR}/online/online");
+                    self finally 
                     { 
                         main::manager.unloadProject(project); 
                     }
@@ -1377,8 +1398,8 @@ module GTModeRoot
                     CHECK_NOT_DEMO();
 
                     main::sound.play("ok");
-                    var project = main::manager.laodProject("%{main::PROJECT_ROOT_DIR}/manual/manual");
-                    finally 
+                    var project = main::manager.loadProject("%{main::PROJECT_ROOT_DIR}/manual/manual");
+                    self finally 
                     { 
                         main::manager.unloadProject(project); 
                     }
@@ -1409,7 +1430,7 @@ module GTModeRoot
                 {
                     CHECK_ONLINE_GRANDTOP();
 
-                    main::sound.play("sound");
+                    main::sound.play(sound);
 
                     ROOT::HeaderGT5::HBox::RidingCar.refresh(context);
                     ROOT.changeToMyHome(context, ROOT.active_pane);
@@ -1471,7 +1492,7 @@ module GTModeRoot
                 {
                     method onActivate(context)
                     {
-                        if (ROOT.active_pane)
+                        if (ROOT.active_pane != GTUniversePane)
                         {
                             main::sound.play("ok");
                             GTUniversePane.open(context);
@@ -1487,7 +1508,7 @@ module GTModeRoot
                     {
                         CHECK_ONLINE_GRANDTOP();
     
-                        if (ROOT.active_pane != PrivateLounge)
+                        if (ROOT.active_pane != PrivateLoungePane)
                         {
                             main::sound.play("ok");
     
@@ -1534,7 +1555,7 @@ module GTModeRoot
 
                 method onInitialize(context)
                 {
-                    fireMusic(true, Garage, Item, Photo, Music, Replay, Course, Driver, Museum);
+                    fire(true, Garage, Item, Photo, Music, Replay, Course, Driver, Museum);
                 }
 
                 module Garage
@@ -1609,7 +1630,9 @@ module GTModeRoot
                         CHECK_GARAGE_NOT_EMPTY();
 
                         main::sound.play("ok");
-                        ItemPopup.open(context, ItemPopup);
+                        ItemPopup.open(context, ItemPopup::Mode::ALL);
+
+                        return EVENTRESULT_FILTER;
                     }
                 }
 
@@ -1706,7 +1729,7 @@ module GTModeRoot
                         
                         var mode = UserProfileProject::DriverPopup::Mode::FINDER;
                         var mode_params = Map();
-                        var res = UserProfileProject::DriverPopup.open(context, mode, mode_params, res);
+                        var res = UserProfileProject::DriverPopup.open(context, mode, mode_params);
 
                         PresentFunction::checkUnLock(context);
                         if (ROOT.active_pane == StatusPane)
@@ -1760,7 +1783,7 @@ module GTModeRoot
             }
         }
 
-        module Filter
+        module Friend
         {
             module UserProfile::Id
             {
@@ -1773,75 +1796,80 @@ module GTModeRoot
                     MyHomeProfilePopup.open(context, user_id);
                     return EVENTRESULT_FILTER;
                 }
+            }
 
-                module Tab
+            module Tab
+            {
+                module PrivateLounge
                 {
-                    module PrivateLounge
+                    method onActivate(context)
                     {
-                        method onActivate(context)
-                        {
-                            CHECK_ONLINE_GRANDTOP();
-                            
-                            if (ROOT.active_pane != PrivateLoungePane)
-                                main::sound.play("ok");
-
-                            PrivateLoungePane.open(context, ROOT.active_friend, true, false);
-                            return EVENTRESULT_FILTER;
-                        }
-                    }
-
-                    module Status
-                    {
-                        method onActivate(context)
-                        {
-                            CHECK_ONLINE_GRANDTOP();
-                            
+                        CHECK_ONLINE_GRANDTOP();
+                        
+                        if (ROOT.active_pane != PrivateLoungePane)
                             main::sound.play("ok");
-                            StatusPane.open(context, ROOT.active_friend, true, false);
-                            return EVENTRESULT_FILTER;
-                        }
+
+                        PrivateLoungePane.open(context, ROOT.active_friend, true, false);
+                        return EVENTRESULT_FILTER;
                     }
                 }
 
-                module Buttons
+                module Status
                 {
-                    method onInitialize(context)
+                    method onActivate(context)
                     {
-                        fire(true, Garage, Item, Photo, Music, Replay, Course, Driver, Museum);
-                    }
-
-                    method onFocusEnter(context, event)
-                    {
-                        fire(true, event.widget.focusLight);
-                        return EVENTRESULT_CONTINUE;
-                    }
-
-                    method onFocusLeave(context, event)
-                    {
-                        fire(false, event.widget.focusLight);
-                        return EVENTRESULT_CONTINUE;
-                    }
-
-                    module Photo
-                    {
-                        method onActivate(context)
+                        CHECK_ONLINE_GRANDTOP();
+                        
+                        if (ROOT.active_pane != StatusPane)
                         {
-                            CHECK_ONLINE_GRANDTOP();
-
                             main::sound.play("ok");
-                            PhotoPopup.open(context, ROOT.active_friend["id"].toString(), PhotoPopup::Mode::FINDER);
-                            return EVENTRESULT_CONTINUE;
+                            StatusPane.open(context, ROOT.active_friend, true, false);
                         }
+                        return EVENTRESULT_FILTER;
                     }
+                }
+            }
 
-                    module Course
+            module Buttons
+            {
+                method onInitialize(context)
+                {
+                    fire(true, Garage, Item, Photo, Music, Replay, Course, Driver, Museum);
+                }
+
+                method onFocusEnter(context, event)
+                {
+                    fire(true, event.widget.focusLight);
+                    return EVENTRESULT_CONTINUE;
+                }
+
+                method onFocusLeave(context, event)
+                {
+                    fire(false, event.widget.focusLight);
+                    return EVENTRESULT_CONTINUE;
+                }
+
+                module Photo
+                {
+                    method onActivate(context)
                     {
-                        method onActivate(context)
-                        {
-                            CHECK_ONLINE_GRANDTOP();
-                            CoursePopup.open(context, ROOT.active_friend["id"].toString(), PhotoPopup::Mode::FINDER);
-                            return EVENTRESULT_CONTINUE;
-                        }
+                        CHECK_ONLINE_GRANDTOP();
+
+                        main::sound.play("ok");
+                        PhotoPopup.open(context, ROOT.active_friend["id"].toString(), PhotoPopup::Mode::FINDER);
+                        return EVENTRESULT_FILTER;
+                    }
+                }
+
+                module Course
+                {
+                    method onActivate(context)
+                    {
+                        CHECK_ONLINE_GRANDTOP();
+
+                        main::sound.play("ok");
+                        CoursePopup.open(context, ROOT.active_friend["id"].toString());
+                        return EVENTRESULT_FILTER;
                     }
                 }
             }
@@ -1865,8 +1893,8 @@ module GTModeRoot
                     startActors(Friend_B.ColorFaceA, !b, false);
 
                     Friend_ID.active = id;
-                    Friend_ID.a = a;
-                    Friend_ID.b = b;
+                    Friend_A.active = a;
+                    Friend_B.active = b;
                 }
 
                 module Friend_ID
@@ -1877,7 +1905,7 @@ module GTModeRoot
                         initializeFriendList(context, "ID", List);
                     }
 
-                    method onActivate(context, event, silent)
+                    method onActivate(context, event, silent = false)
                     {
                         CHECK_ONLINE_GRANDTOP();
                         
@@ -1909,7 +1937,7 @@ module GTModeRoot
                     }
                 }
 
-                module Friend_A
+                module Friend_B
                 {
                     method setList(context)
                     {
@@ -1987,7 +2015,7 @@ module GTModeRoot
                     }
                     else
                     {
-                        var friendList = OnlineUtility.getFriendPresenceList(friendList);
+                        var friendList = OnlineUtility.getFriendPresenceList();
                         foreach (var f in friendList)
                         {
                             if (f["id"].toString() == friend["id"].toString())
@@ -2023,9 +2051,9 @@ module GTModeRoot
                     var old_item = self.getItemWidget(old_index);
                     if (old_item != nil)
                     {
-                        if (self.focus_changed_by_script)
+                        if (!self.focus_changed_by_script)
                         {
-                            fire(false, old_item.Image);
+                            fire2(false, old_item.Image);
                         }
                         else
                         {
@@ -2084,9 +2112,12 @@ module GTModeRoot
             {
                 ROOT::FriendList::Body::ParallelActor.on_effect_end = (context) =>
                 {
-                    ROOT::FriendList::Body::ParallelActor = nil;
+                    ROOT::FriendList::Body::ParallelActor.on_effect_end = nil;
                     ROOT::FriendList.visible = false;
-                }
+                };
+
+                ROOT.insensitive = true;
+                fire2(false, ROOT::FriendList::Body);
             }
 
             self.ScalarInterpolator.on_effect_end = nil;
@@ -2107,7 +2138,7 @@ module GTModeRoot
         {
             self.ScalarInterpolator.on_effect_end = (context) =>
             {
-                self.ScalarInterpolator.on_effect_end = nil;
+                GTUniversePane.ScalarInterpolator.on_effect_end = nil;
             }
 
             self.insensitive = true;
@@ -2116,13 +2147,13 @@ module GTModeRoot
 
         method onInitialize(context)
         {
-            var event_categories = ["BEGINNER", "AMATEUR", "PROFESSIONAL", "EXPERT", "EXTREME", "ENDURANCE"];
+            var event_categories = ["BEGINNER", "AMATEUR", "PROFESSIONAL", "EXPERT", "EXTREME", "ENDURANCE"].reverse();
             foreach (var category in event_categories)
             {
-                var need_level = ABspecUtil::getMinimumNeedLevel(ABspecUtil::ASPEC_CATEGORY[category]);
+                var need_level = ABspecUtil::getMinimumNeedLevel(ABspecUtil::ASPEC_CATEGORY[category], false);
                 if (GAME_STATUS.user_profile.getAspecLevel() >= need_level)
                 {
-                    var image_path = "image/gt5/myhome/world_aspec_%s.dds".format(category.downcase);
+                    var image_path = "image/gt5/myhome/world_aspec_%s.dds".format(category.downcase());
                     self.Mode::Mode_Aspec::ImageFace.image_path = image_path;
                     self.Mode::Mode_Aspec::ImageFaceF.image_path = image_path;
                     break;
@@ -2131,10 +2162,10 @@ module GTModeRoot
 
             foreach (var category in event_categories)
             {
-                var need_level = ABspecUtil::getMinimumNeedLevel(ABspecUtil::BSPEC_CATEGORY[category]);
+                var need_level = ABspecUtil::getMinimumNeedLevel(ABspecUtil::BSPEC_CATEGORY[category], true);
                 if (GAME_STATUS.user_profile.getBspecLevel() >= need_level)
                 {
-                    var image_path = "image/gt5/myhome/world_bspec_%s.dds".format(category.downcase);
+                    var image_path = "image/gt5/myhome/world_bspec_%s.dds".format(category.downcase());
                     self.Mode::Mode_Bspec::ImageFace.image_path = image_path;
                     self.Mode::Mode_Bspec::ImageFaceF.image_path = image_path;
                     break;
@@ -2186,7 +2217,7 @@ module GTModeRoot
                     CHECK_CAR_NOT_ONEMAKE_ONLY();
                     CHECK_CAR_NOT_KART();
 
-                    if (GAME_STATUS.user_profile.residence.getContractDriverList() == 0)
+                    if (GLOBAL_STATUS.user_profile.residence.getContractDriverList() == 0)
                     {
                         DialogUtil::openInformationDialog(context, context.translate(ROOT, "MESSAGE_MY_DRIVERS_INTRODUCTION"));
                         return;
@@ -2248,7 +2279,11 @@ module GTModeRoot
             {
                 method onActivate(context)
                 {
-                    CHECK_NOT_DEMO();
+                    if (GAME_STATUS.user_profile.option.demo_version_code != "school_record")
+                    {
+                        CHECK_NOT_DEMO();
+                    }
+
                     CHECK_GARAGE_NOT_EMPTY();
 
                     main::sound.play("ok");
@@ -2286,10 +2321,9 @@ module GTModeRoot
                     if (gtengine::MSpecDB::isStandardModel(cp.getCarCode()))
                     {
                         main::sound.play("disable");
-                        DialogUtil::openInformationDialog(context, context.translate(ROOT, "MESSAGE_CAN_NOT_ENTER_PHOTO_MODE_BY_STANDARD_CAR"));
+                        DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(ROOT, "MESSAGE_CAN_NOT_ENTER_PHOTO_MODE_BY_STANDARD_CAR"));
                         return EVENTRESULT_FILTER;
                     }
-
 
                     main::sound.play("ok");
 
@@ -2376,6 +2410,8 @@ module GTModeRoot
                 {
                     CHECK_ONLINE_GRANDTOP();
                     CHECK_NOT_DEMO();
+                    main::sound.play("ok");
+
                     CHECK_CAR_NOT_FRIEND();
                     CHECK_ONLINE_PROMPT();
                     CHECK_GARAGE_NOT_EMPTY();
@@ -2401,7 +2437,7 @@ module GTModeRoot
 
                 method onInitialize(context)
                 {
-                    self.max_new_date_sec = 0;
+                    self.max_new_date_sec = 0L;
                     self.New.visible = false;
 
                     if (LoginUtil::isOnline())
@@ -2412,7 +2448,7 @@ module GTModeRoot
                             var [context, request] = args;
                             if (request.isDone())
                             {
-                                var xml = EventRace2.getOnlineEventList(request);
+                                var xml = EventRace2.getOnlineEventList();
                                 var event_list = OnlineEventUtil::parse(xml);
                                 var is_new = false;
 
@@ -2452,6 +2488,8 @@ module GTModeRoot
                     CHECK_ONLINE_PROMPT();
                     CHECK_GARAGE_NOT_EMPTY();
 
+                    main::sound.play("ok");
+
                     PROJECT.history['GTModeRoot::FocusWidgetName'] = self.getNodePath(PROJECT::ROOT);
                     SeasonalEventsRoot.open(context);
 
@@ -2468,13 +2506,13 @@ module GTModeRoot
 
                 method onInitialize(context)
                 {
-                    self.max_new_date_sec = 0;
+                    self.max_new_date_sec = 0L;
                     self.New.visible = false;
 
                     if (LoginUtil::isOnline())
                     {
                         var me = self;
-                        EventRace2.requestUsedCarList((args) => 
+                        Grim2.requestUsedCarList((args) => 
                         {
                             var [context, request] = args;
                             if (request.isDone())
@@ -2482,7 +2520,6 @@ module GTModeRoot
                                 var used_car_list = Grim2.decodeUsedCarList(request);
                                 var new_date = used_car_list["new_date"];
                                 
-                                var new_date = event["new_date"];
                                 var new_date_sec = new_date.getBySecond();
                                 if (me != nil && me.max_new_date_sec != nil)
                                 {
@@ -2506,6 +2543,7 @@ module GTModeRoot
                     CHECK_ONLINE_GRANDTOP();
                     CHECK_ONLINE_PROMPT();
 
+                    main::sound.play("ok");
                     PROJECT.history['GTModeRoot::FocusWidgetName'] = self.getNodePath(PROJECT::ROOT);
                     UsedCarDealerRoot.open(context, true);
 
@@ -2532,7 +2570,7 @@ module GTModeRoot
                     if (pdiext::isQABuild())
                         OfficialEventsRoot.open(context);
                     else
-                        DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(ROOT, "OnlineMessage", "THIS_CANNOT_BE_SELECTED"));
+                        DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(ROOT, "THIS_CANNOT_BE_SELECTED"));
 
                     return EVENTRESULT_FILTER;
                 }
@@ -2605,12 +2643,12 @@ module GTModeRoot
 
         method setButtonState(context)
         {
-            var myhome_mode = ROOT.active_friend == niul;
+            var myhome_mode = ROOT.active_friend == nil;
             Buttons::Active::GTMail.visible = myhome_mode;
             Buttons::Focus::GTMailSend.visible = !myhome_mode;
-            Buttons::Focus::Present.visible = myhome_mode;
+            Buttons::Active::Present.visible = myhome_mode;
             Buttons::Focus::PresentSend.visible = !myhome_mode;
-            Buttons::Focus::InstantRace.visible = myhome_mode;
+            Buttons::Focus::InstantRace.visible = true;
 
             if (myhome_mode)
             {
@@ -2679,7 +2717,7 @@ module GTModeRoot
                 self.active_child_pane.finalizeFinder(context);
             }
 
-            showHeader(context);
+            showHeader(context, false);
             if (ROOT.active_friend == nil)
             {
                 Menu::MyHome::Tab::GTUniverse.active = false;
@@ -2696,7 +2734,7 @@ module GTModeRoot
 
             var child_pane = self.active_child_pane;
             if (child_pane == nil)
-                child_pane = default_pane;
+                child_pane = default_page;
             else if (child_pane == Children::GTMailChildPane || child_pane == Children::PresentChildPane)
                 child_pane = default_page;
             child_pane.open(context, skip);
@@ -2789,7 +2827,7 @@ module GTModeRoot
                         child_pane.initializeFinder(context);
                     };
                     fire(false, child_pane);
-                    child_pane.initializeFinder(context);
+                    child_pane.finalizeFinder(context);
                 }
             }
             else 
@@ -2875,15 +2913,8 @@ module GTModeRoot
                     method onActivate(context)
                     {
                         CHECK_ONLINE_GRANDTOP();
-
-                        var usec = ROOT.keep_interval_usec;
-                        var now = pdistd::GetSystemTimeMicroSecond();
-                        if (now - usec < 800000)
-                            return EVENTRESULT_FILTER;
-                        else
-                            ROOT.keep_interval_usec = now;
-
-                        CHECK_ONLINE_PROMPT();
+                        CHECK_TIMEOUT();
+                        CHECK_CAN_ONLINE_CHAT();
 
                         main::sound.play("ok");
 
@@ -2897,15 +2928,8 @@ module GTModeRoot
                     method onActivate(context)
                     {
                         CHECK_ONLINE_GRANDTOP();
-
-                        var usec = ROOT.keep_interval_usec;
-                        var now = pdistd::GetSystemTimeMicroSecond();
-                        if (now - usec < 800000)
-                            return EVENTRESULT_FILTER;
-                        else
-                            ROOT.keep_interval_usec = now;
-
-                        CHECK_ONLINE_PROMPT();
+                        CHECK_TIMEOUT();
+                        CHECK_CAN_ONLINE_CHAT();
 
                         main::sound.play("ok");
 
@@ -2919,15 +2943,7 @@ module GTModeRoot
                     method onActivate(context)
                     {
                         CHECK_ONLINE_GRANDTOP();
-
-                        var usec = ROOT.keep_interval_usec;
-                        var now = pdistd::GetSystemTimeMicroSecond();
-                        if (now - usec < 800000)
-                            return EVENTRESULT_FILTER;
-                        else
-                            ROOT.keep_interval_usec = now;
-
-                        CHECK_ONLINE_PROMPT();
+                        CHECK_TIMEOUT();
 
                         main::sound.play("ok");
 
@@ -2936,18 +2952,12 @@ module GTModeRoot
                     }
                 }
 
-                module Present
+                module ActionLog
                 {
                     method onActivate(context)
                     {
                         CHECK_ONLINE_GRANDTOP();
-
-                        var usec = ROOT.keep_interval_usec;
-                        var now = pdistd::GetSystemTimeMicroSecond();
-                        if (now - usec < 800000)
-                            return EVENTRESULT_FILTER;
-                        else
-                            ROOT.keep_interval_usec = now;
+                        CHECK_TIMEOUT();
 
                         main::sound.play("ok");
 
@@ -2996,7 +3006,7 @@ module GTModeRoot
 
                 module PresentSend
                 {
-                    method onCallbackGarage(context, args)
+                    function onCallbackGarage(context, args)
                     {
                         CHECK_ONLINE_GRANDTOP();
 
@@ -3004,7 +3014,7 @@ module GTModeRoot
                         GaragePopup.open(context, present_to);
                     }
 
-                    method onCallbackItem(context, args)
+                    function onCallbackItem(context, args)
                     {
                         CHECK_ONLINE_GRANDTOP();
 
@@ -3012,7 +3022,7 @@ module GTModeRoot
                         ItemPopup.open(context, ItemPopup::Mode::PRESENT, ["present_to" : present_to]);
                     }
 
-                    method onCallbackMuseum(context, args)
+                    function onCallbackMuseum(context, args)
                     {
                         CHECK_ONLINE_GRANDTOP();
 
@@ -3052,13 +3062,14 @@ module GTModeRoot
                             var museum_cascade = Array();
                             foreach (var dealer in dealer_list2)
                             {
-                                var dealer2 = context.translate(ROOT, "TunerName");
-                                museum_cascade.push(UIKitProject::ContextMenuPopup::Data(dealer2, true, onCallbackGarage, [dealer, present_to]));
+                                var dealer2 = context.translate(ROOT, "TunerName", dealer);
+                                museum_cascade.push(UIKitProject::ContextMenuPopup::Data(dealer2, true, onCallbackMuseum, [dealer, present_to]));
                             }
 
-                            data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MUSEUM")), dealer_list2.size > 0, nil, nil, museum_cascade);
+                            data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MUSEUM"), dealer_list2.size > 0, nil, nil, museum_cascade));
                         }
 
+                        var title = nil;
                         var x = self.sx + (self.w / 2);
                         var y = self.sy + (self.h / 2);
                         UIKitProject::ContextMenuPopup.open(context, x, y, title, data_list);
@@ -3086,7 +3097,7 @@ module GTModeRoot
                         {
                             var user_id = Grim2.getLoginUserId();
                             var color_index = GAME_STATUS.user_profile.context.myhome_color_id;
-                            [r, g, b] = GAME_STATUS.user_profile.context.getMenuColor();
+                            [r, g, b] = GAME_STATUS.user_profile.context.getMenuColor(color_index);
                         }
                         else
                         {
@@ -3137,18 +3148,19 @@ module GTModeRoot
                         if (ROOT.active_friend != nil)
                         {
                             var user_id = ROOT.active_friend["id"].toString();
-                            var [context, request] = args;
-
-                            if (request.isDone())
+                            var [context, request] = OnlineBSpec.requestRaceResultSummaryList(user_id, (args) =>
                             {
-                                var summary_list = OnlineBSpec.decodeResultSummaryList(request);
-                                if (summary_list.size > 0)
-                                    UserProfileProject::RemoteRaceResultListPopup.open(context, summary_list, user_id);
+                                if (request.isDone())
+                                {
+                                    var summary_list = OnlineBSpec.decodeResultSummaryList(request);
+                                    if (summary_list.size > 0)
+                                        UserProfileProject::RemoteRaceResultListPopup.open(context, summary_list, user_id);
+                                    else
+                                        OK(context, ROOT, "MSG_REMOTERACE_NO_RESULT");
+                                }
                                 else
-                                    OK(context, ROOT, "MSG_REMOTERACE_NO_RESULT");
-                            }
-                            else
-                                ERROR(context, ROOT, "MSG_REMOTERACE_NO_RESULT");
+                                    ERROR(context, ROOT, "MSG_REMOTERACE_NO_RESULT");
+                            });
                         }
                         else
                         {
@@ -3233,7 +3245,12 @@ module GTModeRoot
                     fire(false, me);
                 }
 
-                method onInitItem(context, candidate_data, item_w, arg)
+                method onFinalize(context)
+                {
+                    finalizeFinder(context);
+                }
+
+                function onInitItem(context, candidate_data, item_w, arg)
                 {
                     var bbs = candidate_data.value_;
                     item_w.Info.TextFace.text = bbs[2];
@@ -3256,7 +3273,7 @@ module GTModeRoot
                     if (!BbsChildPane.initialized)
                         return;
 
-                    var candidate_data = folder_date.getItemData();
+                    var candidate_data = folder_data.getItemData();
                     var index = candidate_data.item_index_;
                     
                     ButtonHelpGT5.hide();
@@ -3316,7 +3333,7 @@ module GTModeRoot
                     Input::InputTextFace.value = "";
                     Input::TextFace.visible = true;
 
-                    var initial_data = ItemBbs::makeInitialData(context, onInitItem, onActivateItem, VScrollbar);
+                    var initial_data = hidden::ItemBbs::makeInitialData(context, onInitItem, onActivateItem, VScrollbar);
                     initial_data.cb_focus_enter_ = onFocusEnterCallback;
                     initial_data.cb_focus_leave_ = onFocusLeaveCallback;
                     initial_data.cb_change_focus_ = onFocusNotifyCallback;
@@ -3365,7 +3382,7 @@ module GTModeRoot
 
                         method onFocusLeave(context)
                         {
-                            if (self.Value.size == 0)
+                            if (self.value.size == 0)
                             {
                                 Input::TextFace.visible = true;
                             }
@@ -3447,7 +3464,7 @@ module GTModeRoot
                         CHECK_ONLINE_GRANDTOP();
 
                         ButtonHelpGT5.hide();
-                        ButtonHelpGT5.open(context, BbsChildPane.bbs_board_id, index);
+                        BbsDetailPopup.open(context, BbsChildPane.bbs_board_id, index);
                         ButtonHelpGT5.appear();
                     }
 
@@ -3468,7 +3485,7 @@ module GTModeRoot
                         var user_id = bbs[2];
                         var comment = bbs[3];
 
-                        var replay = context.translate(ROOT, "MyHome", "FORMAT_BBS_REPLY").build(user_id, comment);
+                        var reply = context.translate(ROOT, "MyHome", "FORMAT_BBS_REPLY").build(user_id, comment);
                         Input::InputTextFace.value += reply;
                         Input::TextFace.visible = false;
                     }
@@ -3511,18 +3528,18 @@ module GTModeRoot
                             var x = widget.sx + (widget.w * widget.cursor_align_x);
                             var y = widget.sy + (widget.w * widget.cursor_align_x);
 
-                            var candidate_data = BbsChildPane.finder.getItemWidget(context, focus_index);
+                            var candidate_data = BbsChildPane.finder.getItemData(context, focus_index);
                             var bbs = candidate_data.value_;
                             var data_list = [];
                             data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "REPLY"), true, replyCallback, bbs));
-                            data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_DETAIL"), true, showDetailCallback, bbs));
+                            data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_DETAIL"), true, showDetailCallback, focus_index));
                             data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_PROFILE"), true, showProfileCallback, bbs));
 
                             var user_id = bbs[2];
-                            if (ROOT.active_friend || user_id == Grim2.getLoginUserId())
+                            if (ROOT.active_friend == nil || user_id == Grim2.getLoginUserId())
                             {
                                 data_list.push(nil);
-                                data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "DELETE"), deleteCallback, bbs));
+                                data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "DELETE"), true, deleteCallback, bbs));
                             }
 
                             var title = nil;
@@ -3549,14 +3566,10 @@ module GTModeRoot
 
                     PrivateLoungePane.changeChildPane(context, self, skip);
                     setActive(context, "GTMail");
-                    self.initialized = false;
                 }
 
                 method close(context)
-                {
-                    self.bbs_board_id = nil;
-                    self.initialized = nil;
-                    
+                {                    
                     var me = self;
                     self.ScalarInterpolator.on_effect_end = (context) =>
                     {
@@ -3565,7 +3578,7 @@ module GTModeRoot
                         me.ScalarInterpolator.on_effect_end = nil;
                     };
 
-                    fire(false, me);
+                    fire(false, self);
                 }
 
                 method onFinalize(context)
@@ -3588,7 +3601,7 @@ module GTModeRoot
                     }
                 }
 
-                method onInitItem(context, candidate_data, item_w, arg)
+                function onInitItem(context, candidate_data, item_w, arg)
                 {
                     var gtmail = candidate_data.value_;
                     item_w.Info.TextFace.text = gtmail[1];
@@ -3623,9 +3636,9 @@ module GTModeRoot
                     var result = UserProfileProject::GTMailPopup.open(context, mode, index);
                     if (result)
                     {
-                        GTMailChildPane.reload();
+                        GTMailChildPane.reload(context);
                     }
-                    else if (UserProfileProject::GTMailPopup::MODE_VIEW_RECEIVE)
+                    else if (mode == UserProfileProject::GTMailPopup::MODE_VIEW_RECEIVE)
                     {
                         saveNow(context);
 
@@ -3664,8 +3677,7 @@ module GTModeRoot
                             if (request.isDone())
                             {
                                 var mail_list = GTMail.decodeMailList(request);
-                                GAME_STATUS.user_profile.mail.addReceive(mail_list);
-                                var res = me.bbs_board_id = u["user_number"];
+                                var res = GAME_STATUS.user_profile.mail.addReceive(mail_list);
                             }
 
                             if (me.finder != nil)
@@ -3688,8 +3700,7 @@ module GTModeRoot
                             if (request.isDone())
                             {
                                 var mail_list = GTMail.decodeMailList(request);
-                                GAME_STATUS.user_profile.mail.addSend(mail_list);
-                                var res = me.bbs_board_id = u["user_number"];
+                                var res = GAME_STATUS.user_profile.mail.addSend(mail_list);
                             }
 
                             if (me.finder != nil)
@@ -3736,11 +3747,15 @@ module GTModeRoot
 
                             var gt_friend_list = ROOT::FriendList::Body::List.gt_friend_list;
                             var friend_list = [];
-                            for (var i = 0; i < gt_friend_list.size; ++i)
+
+                            if (gt_friend_list != nil)
                             {
-                                var user_id = gt_friend_list[i]["id"];
-                                if (user_id.toString() != Grim2.getLoginUserId())
-                                    friend_list.push(user_id.name);
+                                for (var i = 0; i < gt_friend_list.size; ++i)
+                                {
+                                    var user_id = gt_friend_list[i]["id"];
+                                    if (user_id.toString() != Grim2.getLoginUserId())
+                                        friend_list.push(user_id.name);
+                                }
                             }
 
                             if (friend_list.size == 0)
@@ -3811,7 +3826,7 @@ module GTModeRoot
                         ButtonHelpGT5.appear();
                     }
 
-                    function showProfileCallback(context, bbs)
+                    function showProfileCallback(context, gtmail)
                     {
                         CHECK_ONLINE_GRANDTOP();
 
@@ -3821,7 +3836,7 @@ module GTModeRoot
                         ButtonHelpGT5.appear();
                     }
 
-                    function deleteCallback(context, bbs)
+                    function deleteCallback(context, gtmail)
                     {
                         CHECK_ONLINE_GRANDTOP();
 
@@ -3836,7 +3851,7 @@ module GTModeRoot
                             if (Grim2Util::__deprecated__join__(context, request))
                             {
                                 OK_AUTO_CLOSE(context, ROOT, "MSG_DELETE");
-                                GAME_STATUS.user_profile.bmailbs.removeReceive(mail_id);
+                                GAME_STATUS.user_profile.mail.removeReceive(mail_id);
                                 GTMailChildPane.reload(context);
                             }
                             else
@@ -3850,7 +3865,7 @@ module GTModeRoot
                             if (Grim2Util::__deprecated__join__(context, request))
                             {
                                 OK_AUTO_CLOSE(context, ROOT, "MSG_DELETE");
-                                GAME_STATUS.user_profile.bmailbs.removeSend(mail_id);
+                                GAME_STATUS.user_profile.mail.removeSend(mail_id);
                                 GTMailChildPane.reload(context);
                             }
                             else
@@ -3869,22 +3884,23 @@ module GTModeRoot
                         {
                             var focus_index = GTMailChildPane.finder.getFocusIndex(context);
                             var widget = GTMailChildPane.finder.getItemWidget(focus_index);
-                            if (widget == nil)
-                                return EVENTRESULT_CONTINUE;
-                            
-                            var x = widget.sx + (widget.w * widget.cursor_align_x);
-                            var y = widget.sy + (widget.w * widget.cursor_align_x);
+                            if (widget != nil)
+                            {
+                                var x = widget.sx + (widget.w * widget.cursor_align_x);
+                                var y = widget.sy + (widget.h * widget.cursor_align_y);
 
-                            var candidate_data = GTMailChildPane.finder.getItemWidget(context, focus_index);
-                            var bbs = candidate_data.value_;
-                            var data_list = [];
-                            data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_DETAIL"), true, showDetailCallback, focus_index));
-                            data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_PROFILE"), true, showProfileCallback, gtmail));
-                            data_list.push(nil);
-                            data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "DELETE"), true, deleteCallback, gtmail));
+                                var candidate_data = GTMailChildPane.finder.getItemData(context, focus_index);
+                                var gtmail = candidate_data.value_;
+                                var data_list = [];
+                                data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_DETAIL"), true, showDetailCallback, focus_index));
+                                data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_PROFILE"), true, showProfileCallback, gtmail));
+                                data_list.push(nil);
+                                data_list.push(UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "DELETE"), true, deleteCallback, gtmail));
 
-                            var title = nil;
-                            UIKitProject::ContextMenuPopup.open(context, x, y, title, data_list);
+                                var title = nil;
+                                UIKitProject::ContextMenuPopup.open(context, x, y, title, data_list);
+                            }
+
                             return EVENTRESULT_FILTER;
                         }
 
@@ -3901,7 +3917,7 @@ module GTModeRoot
                 method open(context, skip)
                 {
                     PrivateLoungePane.changeChildPane(context, self, skip);
-                    setActive(context, "Bbs");
+                    setActive(context, "Present");
                 }
         
                 method close(context)
@@ -3914,7 +3930,7 @@ module GTModeRoot
                         me.ScalarInterpolator.on_effect_end = nil;
                     };
         
-                    fire(false, me);
+                    fire(false, self);
                 }
         
                 method onInitialize(context)
@@ -3944,7 +3960,7 @@ module GTModeRoot
                     }
                 }
 
-                method onInitItem(context, candidate_data, item_w, arg)
+                function onInitItem(context, candidate_data, item_w, arg)
                 {
                     var game_item_record = candidate_data.value_;
 
@@ -3958,9 +3974,9 @@ module GTModeRoot
                     item_w.header.title.text = sender;
 
                     var [date, time] = PROJECT::createDateTimeText2(context, ROOT, create_time);
-                    item_w.Info.DateTime.TextFaceDate.text = date;
-                    item_w.Info.DateTime.TextFaceTime.text = time;
-                    item_w.Info.DateTime.TextFaceTime.visible = time != "";
+                    item_w.DateTime.TextFaceDate.text = date;
+                    item_w.DateTime.TextFaceTime.text = time;
+                    item_w.DateTime.TextFaceTime.visible = time != "";
         
                     var comment = game_item_record.comment;
                     if (comment == "")
@@ -3988,7 +4004,6 @@ module GTModeRoot
                                 item_name = item.item_name;
                             }
 
-                            item_w.body.ImageFace.from_disk = true;
                             item_w.body.ImageFace.image_path = "piece/tuningitem_M/%{item.item_code}.img";
                             break;
 
@@ -4016,7 +4031,7 @@ module GTModeRoot
                             if (museum != nil)
                             {
                                 item_name = "%s %s".format(context.translate(ROOT, "TunerName", museum.dealer),
-                                    context.translate(ROOT, "Number", "FORMAT_NO".build(museum.dealer_id)));
+                                    context.translate(ROOT, "Number", "FORMAT_NO").build(museum.dealer_id));
                             }
                             else
                             {
@@ -4027,8 +4042,8 @@ module GTModeRoot
                                     {
                                         var museum = Museum.decodeMuseum(request);
                                         MuseumFileUtil::updateMuseum(museum);
-                                        item_w.body.TextFace2.text = "%s %s".format(context.translate(ROOT, "TunerName", museum.dealer),
-                                            context.translate(ROOT, "Number", "FORMAT_NO".build(museum.dealer_id)));
+                                        item_w.body.TextFace2.text = "%s %s".format(context.translate(ROOT, "TunerName", museum["dealer"]),
+                                            context.translate(ROOT, "Number", "FORMAT_NO").build(museum["dealer_id"]));
                                     }
                                 });
                             }
@@ -4065,7 +4080,7 @@ module GTModeRoot
                                     else
                                     {
                                         var color_index = game_item_record.argument1;
-                                        if (color_index - gtengine::MSpecDB::getCarVariation(car_label) > 1)
+                                        if (color_index > gtengine::MSpecDB::getCarVariation(car_label) - 1)
                                             color_index = 0;
 
                                         item_w.body.ColorTip.visible = true;
@@ -4083,7 +4098,7 @@ module GTModeRoot
                             break;
 
                         case gtengine::GameItemType::DRIVER_ITEM:
-                            var gameitme_id = game_item_record.argument4;
+                            var gameitem_id = game_item_record.argument4;
                             var item = GameItemUtil::getItemByID(gameitem_id);
                             item.argument1 = game_item_record.argument1;
 
@@ -4125,7 +4140,7 @@ module GTModeRoot
                 {
                     CHECK_ONLINE_GRANDTOP();
 
-                    var candidate_data = folder_date.getItemData();
+                    var candidate_data = folder_data.getItemData();
                     var game_item_record = candidate_data.value_;
                     
                     var message = game_item_record.type_id == gtengine::GameItemType::MUSEUMCARD ? "QUERY_GET_GIFT_MUSEUM" : "QUERY_GET_GIFT";
@@ -4138,10 +4153,8 @@ module GTModeRoot
                 method initializeFinder(context)
                 {
                     self.List::Zero.visible = false;
-                    Input::InputTextFace.value = "";
-                    Input::TextFace.visible = true;
         
-                    var initial_data = ItemBbs::makeInitialData(context, onInitItem, onActivateItem, VScrollbar);
+                    var initial_data = hidden::ItemPresent::makeInitialData(context, onInitItem, onActivateItem, VScrollbar);
                     initial_data.cb_focus_enter_ = onFocusEnterCallback;
                     initial_data.cb_focus_leave_ = onFocusLeaveCallback;
                     initial_data.cb_change_focus_ = onFocusNotifyCallback;
@@ -4153,7 +4166,7 @@ module GTModeRoot
                         var [context, request] = args;
                         if (request.isDone())
                         {
-                            var id_list = ItemBox.decodeIdLList() // TYPO: decodeIdLList (still correct)
+                            var id_list = ItemBox.decodeIdLList(request) // TYPO: decodeIdLList (still correct)
                             GameItemUtil::ItemBox::checkIdList(id_list);
                         }
                     });
@@ -4161,7 +4174,7 @@ module GTModeRoot
                     var me = self;
                     var itembox_id = GameItemUtil::ItemBox::getMaxItemBoxId();
 
-                    ItemBox.requestItemList(user_id, (args) => 
+                    ItemBox.requestItemList(itembox_id, (args) => 
                     {
                         var [context, request] = args;
                         if (request.isDone())
@@ -4175,7 +4188,7 @@ module GTModeRoot
                         {
                             var item_list = GameItemUtil::ItemBox::getPresentBoxList();
                             me.List::Zero.visible = item_list.size == 0;
-                            me.Buttons::ReceiveAll.insensitive = item_list.size = 0;
+                            me.Buttons::ReceiveAll.insensitive = item_list.size == 0;
                             
                             var candidates = UIKitProject::FinderRoot.makeCandidates(item_list);
                             me.finder.replaceCurrentFolderCandidates(context, candidates, 0);
@@ -4207,7 +4220,7 @@ module GTModeRoot
 
                             case gtengine::GameItemType::MUSEUMCARD:
                                 var museum_id = game_item_record.code;
-                                ActionLogUtil::giftMuseum(gameitem_id, car_label);
+                                ActionLogUtil::giftMuseum(museum_id);
                                 break;
 
                             case gtengine::GameItemType::SPECIAL:
@@ -4222,6 +4235,9 @@ module GTModeRoot
                                 var color_code = game_item_record.argument1;
 
                                 ActionLogUtil::giftDriverItem(gameitem_id, code, color_code);
+                                break;
+
+                            default:
                                 break;
                         }
                     }
@@ -4288,13 +4304,15 @@ module GTModeRoot
                             {
                                 main::sound.play("disable");
                             }
+
+                            return EVENTRESULT_FILTER;
                         }
                     }
                 }
 
                 module List
                 {
-                    function deleteCallback(context, bbs)
+                    function deleteCallback(context, gameitem_record)
                     {
                         CHECK_ONLINE_GRANDTOP();
         
@@ -4342,20 +4360,20 @@ module GTModeRoot
                                 return EVENTRESULT_CONTINUE;
                             
                             var x = widget.sx + (widget.w * widget.cursor_align_x);
-                            var y = widget.sy + (widget.w * widget.cursor_align_x);
+                            var y = widget.sy + (widget.h * widget.cursor_align_y);
         
                             var candidate_data = PresentChildPane.finder.getItemData(context, focus_index);
                             var gameitem_record = candidate_data.value_;
                             var data_list = [];
 
-                            if (sender != "")
+                            if (gameitem_record.sender != "")
                             {
                                 data_list += [
                                     UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_PROFILE"), true, showProfileCallback, gameitem_record),
                                     nil
                                 ];
                             }
-                            data_list += UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "DELETE"), deleteCallback, gameitem_record);
+                            data_list += UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "DELETE"), true, deleteCallback, gameitem_record);
                             
         
                             var title = nil;
@@ -4389,7 +4407,7 @@ module GTModeRoot
                         me.ScalarInterpolator.on_effect_end = nil;
                     };
         
-                    fire(false, me);
+                    fire(false, self);
                 }
         
                 method onFinalize(context)
@@ -4397,7 +4415,7 @@ module GTModeRoot
                     finalizeFinder(context);
                 }
 
-                method onInitItem(context, candidate_data, item_w, arg)
+                function onInitItem(context, candidate_data, item_w, arg)
                 {
                     var action_log = candidate_data.value_;
                     var create_time = action_log["create_time"];
@@ -4423,7 +4441,7 @@ module GTModeRoot
                             break;
 
                         case "FR":
-                            text = context.translate(ROOT, "ActionLog", "FRIENDCAR_RIDE").build(gtengine::MSpecDB::getCarShortName(value2));
+                            text = context.translate(ROOT, "ActionLog", "FRIENDCAR_RIDE").build(value3, gtengine::MSpecDB::getCarShortName(value2));
                             break;
 
                         case "LL":
@@ -4435,8 +4453,8 @@ module GTModeRoot
                             var license_index = LicenseUtil::GetIndexByLicenseId(license_id.toInt());
                             var [category_id, category_index] = LicenseUtil::GetCategoryIdAndCategoryIndex(license_index);
                             var category = LicenseUtil::CategoryString[category_id];
-                            var title = context.translate(ROOT, "LicenseGT5", "%03dt").format(license_id);
-                            var rank = ["1": "GOLD", "2": "SILVER", "3": "BRONZE"][value.toInt()];
+                            var title = context.translate(ROOT, "LicenseGT5", "%03dt".format(license_id));
+                            var rank = ["1": "GOLD", "2": "SILVER", "3": "BRONZE"][value3.toInt()];
                             text = context.translate(ROOT, "ActionLog", "LICENSE_EVENT_%{rank}").build(category, category_index + 1, title);
                             break;
 
@@ -4481,9 +4499,9 @@ module GTModeRoot
                         case "SE":
                             var event_id = value2.toInt();
                             var course_label = value3;
-                            var rank = ["1": "GOLD", "2": "SILVER", "3": "BRONZE"][value.toInt()];
+                            var rank = ["1": "GOLD", "2": "SILVER", "3": "BRONZE"][value4.toInt()];
                             var title = SpecialEventUtil::GetEventTitleJ(context, ROOT, event_id).split("\n").join(" ");
-                            text = context.translate(ROOT, "ActionLog", "SPECIAL_EVENT_%{rank}").build(category, 
+                            text = context.translate(ROOT, "ActionLog", "SPECIAL_EVENT_%{rank}").build(title, 
                                 SpecialEventUtil::GetEventSubtitle(context, ROOT, event_id),
                                 context.translate(ROOT, "CourseName", course_label));
                             break;
@@ -4514,8 +4532,9 @@ module GTModeRoot
                         case "GM":
                             var museum_id = value2;
                             var dealer = value3;
-                            var dealer_id = dealer_id;
-                            var detail = "%s %s".format(context.translate(ROOT, "Number", "FORMAT_NO").build(dealer_id));
+                            var dealer_id = value4;
+                            var detail = "%s %s".format(context.translate(ROOT, "TunerName", dealer),
+                                context.translate(ROOT, "Number", "FORMAT_NO").build(dealer_id));
                             text = context.translate(ROOT, "ActionLog", "GIFT_MUSEUMCARD").build(context.translate(ROOT, "GameItemCategory", "MUSEUM CARD"), detail);
                             break;
 
@@ -4526,10 +4545,10 @@ module GTModeRoot
                             var name = "";
                             if (item.category_id == gtengine::GameItemCategory::HORN)
                                 name = context.translate(ROOT, "Number", "FORMAT_NO").build(horn_id);
-                            else if (item != nil)
+                            else
                                 name = item.item_name;
 
-                            text = context.translate(ROOT, "ActionLog", "GIFT_TUNEPARTS").build(GameItemUtil::getCategoryName(category_id), name);
+                            text = context.translate(ROOT, "ActionLog", "GIFT_TUNEPARTS").build(GameItemUtil::getCategoryName(item.category_id), name);
                             break;
 
                         case "GO":
@@ -4551,15 +4570,15 @@ module GTModeRoot
                             var color_code = value4;
                             var item = GameItemUtil::getItemByID(gameitem_id);
 
-                            text = context.translate(ROOT, "ActionLog", "GIFT_DRIVER_ITEM").build(item.GameItemUtil::getCategoryName(item.category_id), item.item_name);
+                            text = context.translate(ROOT, "ActionLog", "GIFT_DRIVER_ITEM").build(GameItemUtil::getCategoryName(item.category_id), item.item_name);
                             break;
 
                         case "TU":
-                            var pair = gtengine::TrophyType.find_static((pair) => value[2] == 1);
+                            var pair = gtengine::TrophyType.find_static((pair) => value2 == 1);
                             if (pair != nil)
                             {
                                 var type = pair[0][0];
-                                text = context.translate(ROOT, "ActionLog", "TROPHY_UNLOCK").build(context, ROOT, "Trophy", "NAME_%{type}");
+                                text = context.translate(ROOT, "ActionLog", "TROPHY_UNLOCK").build(context.translate(ROOT, "Trophy", "NAME_%{type}"));
                             }
                             break;
 
@@ -4575,9 +4594,9 @@ module GTModeRoot
                     item_w.body.TextFace.text = text;
         
                     var [date, time] = PROJECT::createDateTimeText2(context, ROOT, create_time);
-                    item_w.Info.DateTime.TextFaceDate.text = date;
-                    item_w.Info.DateTime.TextFaceTime.text = time;
-                    item_w.Info.DateTime.TextFaceTime.visible = time != "";
+                    item_w.DateTime.TextFaceDate.text = date;
+                    item_w.DateTime.TextFaceTime.text = time;
+                    item_w.DateTime.TextFaceTime.visible = time != "";
 
                     item_w.ImageFaceF.visible = value1 == "RE";
         
@@ -4592,12 +4611,12 @@ module GTModeRoot
                         showRemoteRaceResult(context, action_log);
                 }
         
-                method showRemoteRaceResult(context, action_log)
+                function showRemoteRaceResult(context, action_log)
                 {
                     var value5 = action_log["value5"];
                     var user_id = action_log["value2"];
-                    var summary_list = ["summary_id": value5];
-                    UserProfileProject::RemoteRaceResultPopup.open(context, summary_list, user_id[0], false);
+                    var summary_list = [ ["summary_id": value5] ];
+                    UserProfileProject::RemoteRaceResultPopup.open(context, summary_list, user_id, 0, false);
                 }
 
                 method requestActionLogList(user_number)
@@ -4632,7 +4651,7 @@ module GTModeRoot
                                     }
                                     else if (re5.match(l) && re5.size > 6)
                                     {
-                                        var data = ["create_time": Grim2.getDateTime(re4[1]), "value1": re4[2], "value2": re4[3], "value3": re4[4], "value4": re4[5], "value5": re[6]];
+                                        var data = ["create_time": Grim2.getDateTime(re4[1]), "value1": re4[2], "value2": re4[3], "value3": re4[4], "value4": re4[5], "value5": re5[6]];
                                         log_list.unshift(data);
                                     }
                                 }
@@ -4651,19 +4670,17 @@ module GTModeRoot
                 method initializeFinder(context)
                 {
                     self.List::Zero.visible = false;
-                    Input::InputTextFace.value = "";
-                    Input::TextFace.visible = true;
         
-                    var initial_data = ItemBbs::makeInitialData(context, onInitItem, onActivateItem, VScrollbar);
+                    var initial_data = hidden::ItemActionLog::makeInitialData(context, onInitItem, onActivateItem, VScrollbar);
                     initial_data.cb_focus_enter_ = onFocusEnterCallback;
                     initial_data.cb_focus_leave_ = onFocusLeaveCallback;
         
                     self.finder = UIKitProject::FinderRoot.setCopy(context, self.List, initial_data, false);
         
-                    var user_id = Grim2.getLoginUserId();
-                    if (ROOT.active_friend != nil)
+                    if (ROOT.active_friend == nil)
                     {
-                        var user_number = requestActionLogList(user_number);
+                        var user_number = Grim2.getLoginUserNumber();
+                        requestActionLogList(user_number);
                     }
                     else
                     {
@@ -4699,7 +4716,7 @@ module GTModeRoot
                             if (widget == nil)
                                 return EVENTRESULT_CONTINUE;
                             
-                            var candidate_data = BbsChildPane.finder.getItemWidget(context, focus_index);
+                            var candidate_data = ActionLogChildPane.finder.getItemData(context, focus_index);
                             var action_log = candidate_data.value_;
 
                             if (action_log["value1"] != "RE")
@@ -4709,6 +4726,9 @@ module GTModeRoot
                                 UIKitProject::ContextMenuPopup::Data(context.translate(ROOT, "MyHome", "SHOW_REMOTE_RACE_RESULT"), true, showRemoteRaceResultCallback, action_log)
                             ];
 
+                            var title = nil;
+                            var x = widget.sx + (widget.w * widget.cursor_align_x);
+                            var y = widget.sy + (widget.h * widget.cursor_align_y);
                             UIKitProject::ContextMenuPopup.open(context, x, y, title, data_list);
                             return EVENTRESULT_FILTER;
                         }
@@ -4726,7 +4746,6 @@ module GTModeRoot
         method open(context, friend, change_tab, friend_to_friend)
         {
             self.x = LoginUtil::isOnline() ? 0 : -100;
-            var skip = nil;
             if (change_tab)
             {
                 if (ROOT.active_pane != nil)
@@ -4741,6 +4760,7 @@ module GTModeRoot
                 }
 
                 self.ScalarInterpolator.on_effect_end = nil;
+                updateStatus(context);
                 fire(true, self);
                 self.insensitive = false;
             }
@@ -4787,7 +4807,7 @@ module GTModeRoot
         {
             self.ScalarInterpolator.on_effect_end = (context) =>
             {
-                self.ScalarInterpolator.on_effect_end = nil;
+                StatusPane.ScalarInterpolator.on_effect_end = nil;
             }
 
             self.insensitive = true;
@@ -4813,6 +4833,8 @@ module GTModeRoot
             Children::License::Gold::TextFace.text = -1;
             Children::License::Silver::TextFace.text = -1;
             Children::License::Bronze::TextFace.text = -1;
+
+            var license_level = u["license_level"];
             Children::License::Class::license.image_path = "piece/license_icon/none.img";
 
             UserProfile2.requestUserProfile(user_id, (args) => 
@@ -4862,16 +4884,16 @@ module GTModeRoot
                 var [context, request] = args;
                 if (request.isDone())
                 {
-                    var car_list = OnlineBSpec.decodeDriverList(request);
-                    Children::Driver.initialize(context, car_list, true);
+                    var driver_list = OnlineBSpec.decodeDriverList(request);
+                    Children::Driver.initialize(context, driver_list, true);
                 }
             });
         }
 
-        method synchronizeServerCar(context, online_car_list)
+        function synchronizeServerCar(context, online_car_list)
         {
             var garage = GAME_STATUS.user_profile.garage;
-            var row_list = Garage2Util::Online::getCarList("garage_id", "asc");
+            var row_list = Garage2Util::Online::getCarList("garage_id", "asc", true);
             var local_car_list = Array(row_list.size);
 
             var i = 0;
@@ -4918,10 +4940,10 @@ module GTModeRoot
             }
         }
 
-        method synchronizeServerDriver(context, online_driver_list)
+        function synchronizeServerDriver(context, online_driver_list)
         {
             var residence = GAME_STATUS.user_profile.residence;
-            var local_car_list = GAME_STATUS.user_profile.residence.getOnlineDriverList();
+            var local_driver_list = GAME_STATUS.user_profile.residence.getOnlineDriverList();
 
             foreach (var local_driver in local_driver_list)
             {
@@ -4951,7 +4973,7 @@ module GTModeRoot
                 {
                     var grim_driver_id = local_driver[4];
 
-                    if (grim_driver_id == online_car["driver_id"])
+                    if (grim_driver_id == online_driver["driver_id"])
                     {
                         find = true;
                         break;
@@ -4965,7 +4987,7 @@ module GTModeRoot
             }
         }
 
-        method updateStatusAsOffline(context, user_id)
+        method updateStatusAsOffline(context)
         {
             
             Children::Log::AspecLevel::TextFace.text = GAME_STATUS.user_profile.getAspecLevel();
@@ -5017,7 +5039,7 @@ module GTModeRoot
                         var online_driver_list = OnlineBSpec.decodeDriverList(request);
                         synchronizeServerDriver(context, online_driver_list);
 
-                        var car_list = OnlineBSpec.decodeDriverList(request);
+                        var driver_list = GAME_STATUS.user_profile.residence.getOnlineDriverList();
                         Children::Driver.initialize(context, driver_list, false);
                     }
                 });
@@ -5034,8 +5056,8 @@ module GTModeRoot
 
         method onFinalize(context)
         {
-            Children::Driver::Dummy.clearChild();
-            Children::Car::Dummy.clearChild();
+            Children::Driver::Dummy.clearChild(context);
+            Children::Car::Dummy.clearChild(context);
         }
 
         module Children
@@ -5044,7 +5066,7 @@ module GTModeRoot
             {
                 attribute user_profile;
 
-                method onFocusLeave(context, event)
+                method onFocusLeave(context)
                 {
                     BalloonTip.reset_value();
                     return EVENTRESULT_FILTER;
@@ -5054,7 +5076,10 @@ module GTModeRoot
                 {
                     var text = "";
                     if (current > -1)
+                    {
                         text = "%s %s / %s".format(context.translate(ROOT, "Unit", "EXP"), current, total);
+                    }
+                    else
                     {
                         var max = GAME_STATUS.user_profile.getPointForNextLevel(GAME_STATUS.user_profile.getLevelMax() - 1);
                         text = "%s %s / %s".format(context.translate(ROOT, "Unit", "EXP"), max, max);
@@ -5097,7 +5122,7 @@ module GTModeRoot
 
                         if (u != nil)
                         {
-                            current = u["aspec_exp"];
+                            current = u["bspec_exp"];
                             total = GAME_STATUS.user_profile.getPointForNextLevel(u["bspec_level"]);
                         }
                         else
@@ -5129,22 +5154,24 @@ module GTModeRoot
                     }
 
                     ListBox.setItemCount(0);
-                    ListBox.setItemTemplate(ROOT::hidden::ItemStatusDriver);
+                    ListBox.setItemTemplate(context, ROOT::hidden::ItemStatusDriver);
                     ListBox.driver_list = driver_list;
-                    ListBox.setItemCount(driver_lsit.size);
+                    ListBox.setItemCount(driver_list.size);
                     Children::Driver::Dummy.clearChild(context);
 
                     var dummy_count = driver_list.size - 6;
                     for (var i = 0; i < dummy_count; ++i)
                     {
-                        Children::Driver::Dummy.appendChild(hidden::ImageFaceBrankDriver.doCopy());
+                        Children::Driver::Dummy.appendChild(context, hidden::ImageFaceBrankDriver.doCopy());
                     }
+
+                    ListBox.can_focus = driver_list.size > 0;
                 }
 
                 method onInitialize(context)
                 {
                     var adj = menu::MAdjustment();
-                    HScrollbar.adjustment = ListBox.h_adjustment = adj;
+                    ListBox.h_adjustment = HScrollbar.adjustment = adj;
                 }
 
                 method onFinalize(context)
@@ -5239,17 +5266,19 @@ module GTModeRoot
                             car["cp"] = cp;
                         }
                     }
-
-                    foreach (var param in car_list)
+                    else
                     {
-                        var row = param[3];
-                        var cpp = GAME_STATUS.user_profile.garage.convertRow2Cpp(row);
-                        param[1] = cpp;
-                        param[3] = nil;
+                        foreach (var param in car_list)
+                        {
+                            var row = param[3];
+                            var cpp = GAME_STATUS.user_profile.garage.convertRow2Cpp(row);
+                            param[1] = cpp;
+                            param[3] = nil;
+                        }
                     }
 
                     ListBox.setItemCount(0);
-                    ListBox.setItemTemplate(ROOT::hidden::ItemStatusCar);
+                    ListBox.setItemTemplate(context, ROOT::hidden::ItemStatusCar);
                     ListBox.car_list = car_list;
                     ListBox.setItemCount(car_list.size);
                     Children::Car::Dummy.clearChild(context);
@@ -5257,7 +5286,7 @@ module GTModeRoot
                     var dummy_count = car_list.size - 6;
                     for (var i = 0; i < dummy_count; ++i)
                     {
-                        Children::Car::Dummy.appendChild(hidden::ImageFaceBrankCar.doCopy());
+                        Children::Car::Dummy.appendChild(context, hidden::ImageFaceBrankCar.doCopy());
                     }
 
                     ListBox.can_focus = car_list.size > 0;
@@ -5266,7 +5295,7 @@ module GTModeRoot
                 method onInitialize(context)
                 {
                     var adj = menu::MAdjustment();
-                    HScrollbar.adjustment = ListBox.h_adjustment = adj;
+                    ListBox.h_adjustment = HScrollbar.adjustment = adj;
                 }
 
                 method onFinalize(context)
@@ -5276,7 +5305,7 @@ module GTModeRoot
 
                 module ListBox
                 {
-                    attribute driver_list;
+                    attribute car_list;
 
                     method onVisibleNotify(context, indexes)
                     {
@@ -5327,8 +5356,8 @@ module GTModeRoot
                         var item = self.getItemWidget(self.focus_index);
                         if (item != nil)
                         {
-                            var car = item.driver_info;
-                            if (driver.isInstanceOf(System::Array))
+                            var car = item.car_info;
+                            if (car.isInstanceOf(System::Array))
                             {
                                 var [garage_id, cpp, is_riding_car] = car;
                                 var cp = GAME_STATUS.user_profile.garage.getCar(garage_id);
@@ -5362,7 +5391,7 @@ module GTModeRoot
         function makeInitialDataList(context, cb_init_item, cb_on_activate)
         {
             var Finder = UIKitProject::FinderRoot;
-            Finder.makeCandidates(Array(0));
+            var candidates = Finder.makeCandidates(Array(0));
             
             var initial_data = Finder.InitialData(candidates);
             initial_data.view_type_ = Finder.ViewType::SCROLL_V;
@@ -5374,12 +5403,13 @@ module GTModeRoot
         function makeInitialDataIcon(context, cb_init_item, cb_on_activate)
         {
             var Finder = UIKitProject::FinderRoot;
-            Finder.makeCandidates(Array(0));
+            var candidates = Finder.makeCandidates(Array(0));
             
             var initial_data = Finder.InitialData(candidates);
             initial_data.view_type_ = Finder.ViewType::SCROLL_V;
             initial_data.cb_init_item_ = cb_init_item;
             initial_data.cb_on_activate_ = cb_on_activate;
+            initial_data.h_item_count_ = 4;
             return initial_data;
         }
 
@@ -5407,7 +5437,7 @@ module GTModeRoot
         {
             function makeInitialData(context, cb_init_item, cb_on_activate)
             {
-                var initial_data = hidden::makeInitialDataList(context, cb_init_item, cb_on_activate);
+                var initial_data = hidden::makeInitialDataIcon(context, cb_init_item, cb_on_activate);
                 initial_data.extended_item_ = hidden::ItemIcon;
                 return initial_data;
             }
@@ -5457,7 +5487,7 @@ module GTModeRoot
 
                     if (user_id == Grim2.getLoginUserId())
                     {
-                        var photo = PhotoFileUtil::get(GAME_STATUS.user_profile.context.avatar_photo_id);
+                        var photo = PhotoFileUtil::get(GLOBAL_STATUS.user_profile.context.avatar_photo_id);
                         if (photo != nil)
                             self.Image.ImageFace.image_path = photo.filename_t;
                         else
@@ -5543,14 +5573,14 @@ module GTModeRoot
 
         module ItemBspec
         {
-            function makeInitialData(context, cb_init_item, cb_on_activate, vscrollbar)
+            function makeInitialData(context, cb_init_item, cb_on_activate, hscrollbar)
             {
                 var initial_data = hidden::makeInitialDataList(context, cb_init_item, cb_on_activate);
                 var Finder = UIKitProject::FinderRoot;
 
                 initial_data.view_type_ = Finder.ViewType::SCROLL_H;
                 initial_data.extended_item_ = hidden::ItemBspec;
-                initial_data.v_scrollbar_ = vscrollbar;
+                initial_data.h_scrollbar_ = hscrollbar;
                 return initial_data;
             }
         }
@@ -5623,7 +5653,7 @@ module GTModeRoot
                 if (self.car_info.isInstanceOf(System::Array))
                 {
                     var [garage_id, cpp] = self.car_info;
-                    car_label = gtengine::MSpecDB::getCarLabel(cpp.car_code);
+                    car_label = main::gtengine::MSpecDB::getCarLabel(cpp.car_code);
                 }
                 else
                 {
@@ -5700,7 +5730,7 @@ module GTModeRoot
                     {
                         var me = self;
 
-                        OnlineBspec.requestDriver(grim_driver_id, (args) => 
+                        OnlineBSpec.requestDriver(grim_driver_id, (args) => 
                         {
                             var [context, request] = args;
                             if (request.isDone())
@@ -5732,14 +5762,14 @@ module GTModeRoot
                 var _dp = nil;
                 if (self.driver_info.isInstanceOf(System::Array))
                 {
-                    var [residence_id, _dp] = self.driver_infpo;
+                    var [residence_id, _dp] = self.driver_info;
                 }
                 else
                 {
                     _dp = self.dp;
                 }
 
-                return _dp == nil ? "" : dp.display_name;
+                return _dp == nil ? "" : _dp.display_name;
             }
 
             method showBalloon(context)

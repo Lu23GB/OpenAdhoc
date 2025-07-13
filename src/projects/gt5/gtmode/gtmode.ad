@@ -97,10 +97,10 @@ module GTModeProject
 
         additional_sounds = [main::pdiext::MSoundEffect("sound_gt/se/gt5menu.sgd")];
 
-        if (PROJECT.history['GTModeProject'])
+        if (PROJECT.history['GTModeRoot::OpenLounge'])
         {
             PROJECT.history['GTModeRoot::OpenLounge'] = false;
-            PROJECT.history['GTModeRoot::LastPageName'] = "OpenLoungeRoot";
+            PROJECT.history['LastPageName'] = "OpenLoungeRoot";
         }
 
         var start_page = "GTModeRoot";
@@ -155,14 +155,16 @@ module GTModeProject
     {
         if (!__projects__.defined(project_widget_name))
         {
-            var project = main::manager.loadProject("%{main::PROJECT_ROOT_DIR}/%{project_name}/%{project_name}");
+            var project = main::manager.loadProject("%{main::PROJECT_ROOT_DIR}/%{project_dir_name}/%{project_dir_name}");
             additional_projects.push(project);
         }
+        else
+            ;
     }
 
     function removeProject(project_widget_name)
     {
-        if (!__projects__.defined(project_widget_name))
+        if (__projects__.defined(project_widget_name))
         {
             var keep_projects = [];
             foreach (var project in additional_projects)
@@ -189,7 +191,7 @@ module GTModeProject
                 current_widget.reverse = reverse;
 
                 if (warp)
-                    current_widget.reverse = !warp;
+                    current_widget.reverse = !reverse;
 
                 current_widget.rewind();
                 current_widget.start();
@@ -254,11 +256,11 @@ module GTModeProject
             if (diff < 60 * 2)
                 date = context.translate(root, "DateTime", "DIFF_MINUTE_1");
             else if (diff < 60 * 60)
-                date = cotnext.translate(root, "DateTime", "DIFF_MINUTE_2").build(diff / 60);
+                date = context.translate(root, "DateTime", "DIFF_MINUTE_2").build(diff / 60);
             else if (diff < 60 * 60 * 2)
-                date = cotnext.translate(root, "DateTime", "DIFF_HOUR_1");
+                date = context.translate(root, "DateTime", "DIFF_HOUR_1");
             else if (diff < 60 * 60 * 24)
-                date = cotnext.translate(root, "DateTime", "DIFF_HOUR_2").build(diff / 60 / 60);
+                date = context.translate(root, "DateTime", "DIFF_HOUR_2").build(diff / 60 / 60);
             else
                 ;
         }
@@ -295,8 +297,8 @@ module GTModeProject
                 .build(
                     local_time.year,
                     "%02d".format(local_time.month),
-                    "%02d".format(local_time.month),
                     "%02d".format(local_time.day),
+                    "%02d".format(local_time.hour),
                     "%02d".format(local_time.minute),
                 );
     }
@@ -306,13 +308,15 @@ module GTModeProject
         if (bool)
         {
             CursorUtil::setCursor(ContextMain, "wait");
-            ContextMain.event_mask &= ~5;
+            ContextMain.event_mask = 5;
+            ContextMain.disableInput();
             ContextMain.filterKeyEvent();
         }
         else
         {
             CursorUtil::setCursor(ContextMain, "cursor_chrome");
-            ContextMain.event_mask |= 5;
+            ContextMain.event_mask = 5;
+            ContextMain.enableInput();
         }
     }
 
@@ -321,7 +325,7 @@ module GTModeProject
         return DialogUtil::openConfirmDialog(context, DialogUtil::YESNO, context.translate(root, "MyHome", msg));
     }
 
-    function QUERY1(context, root, msg, arg1)
+    function QUERY1(context, root, msg, arg)
     {
         return DialogUtil::openConfirmDialog(context, DialogUtil::YESNO, context.translate(root, "MyHome", msg).build(arg));
     }
@@ -343,37 +347,37 @@ module GTModeProject
 
     function OK_AUTO_CLOSE(context, root, msg)
     {
-        return DialogUtil::openConfirmDialogAutoClose(context, DialogUtil::OK, context.translate(root, "MyHome", msg))
+        DialogUtil::openConfirmDialogAutoClose(context, DialogUtil::OK, context.translate(root, "MyHome", msg))
     }
 
     function OK(context, root, msg)
     {
-        return DialogUtil::openConfirmDialog(context, DialogUtil::OK, context.translate(root, "MyHome", msg))
+        DialogUtil::openConfirmDialog(context, DialogUtil::OK, context.translate(root, "MyHome", msg))
     }
 
     function OK1(context, root, msg, arg)
     {
-        return DialogUtil::openConfirmDialog(context, DialogUtil::OK, context.translate(root, "MyHome", msg).build(arg))
+        DialogUtil::openConfirmDialog(context, DialogUtil::OK, context.translate(root, "MyHome", msg).build(arg))
     }
 
     function ERROR(context, root, msg)
     {
-        return DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(root, "MyHome", msg))
+        DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(root, "MyHome", msg))
     }
 
     function ERROR1(context, root, msg, arg)
     {
-        return DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(root, "MyHome", msg).build(arg))
+        DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, context.translate(root, "MyHome", msg).build(arg))
     }
 
     function INFORMATION(context, root, msg)
     {
-        return DialogUtil::openInformationDialog(context, context.translate(root, "MyHome", msg))
+        DialogUtil::openInformationDialog(context, context.translate(root, "MyHome", msg))
     }
 
     function INFORMATION1(context, root, msg, arg)
     {
-        return DialogUtil::openInformationDialog(context, context.translate(root, "MyHome", msg).build(arg))
+        DialogUtil::openInformationDialog(context, context.translate(root, "MyHome", msg).build(arg))
     }
 
     function NOT_IMPLEMENTED_YET(context)
@@ -381,10 +385,14 @@ module GTModeProject
         return DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, "NOT IMPLEMENTED YET")
     }
 
+    function INTRODUCTION(context, root, msg)
+    {
+        DialogUtil::openInformationDialog(context, context.translate(root, "IntroductionGT5", msg));
+    }
+
     function REQUEST_ERROR(context, root, msg, request)
     {
-        var text = context.translate(root, "MyHome", msg);
-        return DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, Grim2Util::makeRequestError(context, root, text, request));
+        DialogUtil::openConfirmDialog(context, DialogUtil::ERROR, Grim2Util::makeRequestError(context, root, text, request));
     }
 
     function getFriendList(context)
@@ -402,7 +410,7 @@ module GTModeProject
                 var gt_friend_id_list_csv = u["gt_friend_list"];
                 if (gt_friend_id_list_csv != "")
                 {
-                    friend_list_cache = gt_friend_id_list_csv.split(",");
+                    friend_list_cache = gt_friend_id_list_csv.split(", ");
                 }
             }
         }
@@ -445,6 +453,11 @@ module GTModeProject
             return "";
     }
 
+    function playBackHomeSound()
+    {
+        sound.play("return");
+    }
+
     function saveNow(context)
     {
         GAME_STATUS.user_profile.context.need_save = SaveDataUtilGT5::STATUSCODE::CHECK_SAVE;
@@ -453,7 +466,7 @@ module GTModeProject
             SaveDataUtilGT5::checkSaveEveryWhere(context);
     }
 
-    function GetDistanceText(context, running_km)
+    function getDistanceText(context, running_km)
     {
         var km_mile;
         var unit_text;

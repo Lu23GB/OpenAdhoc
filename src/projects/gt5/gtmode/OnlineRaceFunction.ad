@@ -52,7 +52,7 @@ function callMakeSureLogin(context)
 
 function goToLounge(context, user_id)
 {
-    CursorUtil::setCursor(CursorMain, "wait");
+    CursorUtil::setCursor(ContextMain, "wait");
     if (!OnlineUtil::initializeLobby(context, true))
         return false;
 
@@ -60,7 +60,7 @@ function goToLounge(context, user_id)
     var room = OnlineUtil::searchPrivateLounge(context, ROOT, user_id);
 
     var project = main::manager.loadProject("%{main::PROJECT_ROOT_DIR}/online/online");
-    finally
+    self finally
     {
         main::manager.unloadProject(project);
     }
@@ -115,10 +115,11 @@ function getRoomTypeString(context, roomType)
             break;
 
         case gtengine::RoomType::NONE:
-            break;
+            ; // Fallthrough?
     }
 
-    return roomTypeKey != nil ? context.translate(ROOT, roomTypeKey) : "";
+    var msg = roomTypeKey != nil ? context.translate(ROOT, roomTypeKey) : "";
+    return msg;
 }
 
 function joinCurrentSession(context, friend)
@@ -127,7 +128,7 @@ function joinCurrentSession(context, friend)
     if (OnlineUtil::initializeLobby(context, true))
         return false;
 
-    var need_finalize_lobby;
+    var need_finalize_lobby = true;
     var roomType = getRoomTypeString(context, friend["roomType"]);
     if (roomType == "")
     {
@@ -146,7 +147,7 @@ function joinCurrentSession(context, friend)
     else
     {
         var project = main::manager.loadProject("%{main::PROJECT_ROOT_DIR}/online/online");
-        finally
+        self finally
         {
             main::manager.unloadProject(project);
         }
@@ -162,7 +163,8 @@ function joinCurrentSession(context, friend)
         if (OnlineUtil::enterRoomWithProgressDialog(context, [roomId, nil, loungeOwnerId]))
         {
             GAME_STATUS.user_profile.context.skip_online_top_menu = true;
-            SequenceUtil::startSequence(context, main::GameSequence::RACE);
+            SequenceUtil::startSequence(context, GameSequence::RACE);
+            need_finalize_lobby = false;
         }
     }
 
@@ -180,7 +182,7 @@ function getGameParameterList(context, from_server)
 
         var request = main::EventRace2.requestEventRaceList(all_region, (args) => {});
         if (Grim2Util::__deprecated__join__(context, request))
-            xml_data = main::EventRace2.decodeEventRaceList();
+            xml_data = main::EventRace2.decodeEventRaceList(request);
 
         if (xml_data != nil)
         {
@@ -206,11 +208,14 @@ function getGameParameterList(context, from_server)
             var fst = main::pdistd::ReadFile(path);
             var xml_data = fst["buffer"];
 
-            var tmp_gp_list = GameParameterUtil::parseXML(xml_data);
-            if (tmp_gp_list.size <= 0)
-                continue;
-
-            gp_list += tmp_gp_list;
+            if (xml_data != nil)
+            {
+                var tmp_gp_list = GameParameterUtil::parseXML(xml_data);
+                if (tmp_gp_list.size <= 0)
+                    continue;
+                
+                gp_list += tmp_gp_list;
+            }
         }
     }
 }
