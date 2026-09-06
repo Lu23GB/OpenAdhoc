@@ -22,7 +22,8 @@ module ROOT
 
     method open(context, user_id, x, y, driver_list, mode, select_max)
     {
-        x = 754;
+        x = 754; // ?
+
         self.position_x = x;
         self.position_y = y;
         self.user_id = user_id;
@@ -34,6 +35,7 @@ module ROOT
 
         self.popup = main::SequenceUtil::ModalPage(context, ROOT);
         self.popup.open();
+
         var res = self.result;
         self.result = nil;
 
@@ -49,7 +51,7 @@ module ROOT
 
         FadeActor.on_effect_end = function (context) 
         {
-            if (nil != ROOT.popup)
+            if (ROOT.popup != nil)
             {
                 ROOT.popup.close();
                 ROOT.popup = nil;
@@ -63,9 +65,12 @@ module ROOT
     {
         Popup.sx = self.position_x;
         Popup.sy = self.position_y;
+
         Popup::Body::TitleRow::label.text = self.user_id;
+
         Popup::Body::FootRow.visible = Mode::MULTI == self.mode;
         Popup::Body::FootRow::oval.insensitive = true;
+
         Popup::Body::ListBox.initialize(context);
         ROOT.setFocus(Popup::Body::ListBox);
 
@@ -97,7 +102,7 @@ module ROOT
 
                 foreach (var driver in ROOT.driver_list)
                 {
-                    if (nil != driver["dp"])
+                    if (driver["dp"] != nil)
                         continue;
 
                     var dp = gtengine::MCarDriverParameter();
@@ -108,18 +113,18 @@ module ROOT
                 }
 
                 self.setItemCount(ROOT.driver_list.size);
-                ROOT.select_list = Array(ROOT.driver_list.size);
 
+                ROOT.select_list = Array(ROOT.driver_list.size);
                 for (var i = 0; i < ROOT.select_list.size; ++i)
                     ROOT.select_list[i] = false;
 
                 var size = ROOT.driver_list.size;
                 var height = hidden::Item.h * size;
-
                 if (!Popup::Body::FootRow.visible)
                     height += 20;
 
                 ListBox.h = height;
+
                 var header_h = Popup::Body::TitleRow.h;
                 var footer_h = Popup::Body::FootRow.visible ? Popup::Body::FootRow.h : 0;
 
@@ -153,17 +158,19 @@ module ROOT
             method onActivate(context)
             {
                 var item = self.getItemWidget(self.focus_index);
-                if (nil == item)
+                if (item == nil)
                     return EVENTRESULT_FILTER;
 
                 main::sound.play("ok");
                 var driver = item.driver;
 
-                if (1 != driver["status"])
+                if (driver["status"] != 1)
+                {
                     ERROR(context, ROOT, "ERROR_DRIVER_IN_USE");
+                }
                 else
                 {
-                    if (Mode::SINGLE == ROOT.mode)
+                    if (ROOT.mode == Mode::SINGLE)
                     {
                         ROOT.result = [item.driver];
                         ROOT.close(context);
@@ -188,8 +195,8 @@ module ROOT
 
                         item.Body::check.visible = !item.Body::check.visible;
                         ROOT.select_list[self.focus_index] = item.Body::check.visible;
-                        var has_select = false;
 
+                        var has_select = false;
                         foreach (var selected in ROOT.select_list)
                         {
                             if (selected)
@@ -212,9 +219,9 @@ module ROOT
             method onActivate(context)
             {
                 main::sound.play("ok");
+
                 var driver_list = [];
                 var count = ListBox.getItemCount();
-
                 for (var i = 0; i < count; ++i)
                 {
                     if (ROOT.select_list[i])
@@ -244,15 +251,16 @@ module ROOT
                 self.Body::Icon::ImageFace.image_path = ThumbnailUtil::Avatar::getImagePath(
                     ThumbnailUtil::Avatar::Genre::SIMPLE, 
                     ThumbnailUtil::Avatar::Type::MET, 
-                    "M", driver["helmet"], driver["helmet_color"], 
+                    "M", 
+                    driver["helmet"], driver["helmet_color"], 
                     driver["wear"], driver["wear_color"]
                 );
 
                 self.breakline.visible = !is_last;
+
                 var dp = driver["dp"];
                 var condition = dp.growth_parameter.condition;
                 var condition_id = 2;
-
                 if (condition > 8)
                     condition_id = 1;
                 else if (condition < -8)
@@ -266,14 +274,12 @@ module ROOT
 
                 var current_level = dp.growth_parameter.lv;
                 self.Body::Info::Level::Value::TextFace.text = current_level;
+
                 var current_point = GAME_STATUS.user_profile.getCurrentPoint(dp.growth_parameter.experience);
                 var need_exp_for_next = GAME_STATUS.user_profile.getPointForNextLevel(current_level);
 
                 var width = self.Body::Info::Level::Bar::Progress::bar::ColorFace.w;
-                self.Body::Info::Level::Bar::Progress::bar::ScalarInterpolator.setEndValue(
-                    0, (width * current_point.toFloat()) / need_exp_for_next
-                );
-
+                self.Body::Info::Level::Bar::Progress::bar::ScalarInterpolator.setEndValue(0, (width * current_point.toFloat()) / need_exp_for_next);
                 self.Body::Info::Level::Bar::Progress::bar::ScalarInterpolator.restart();
             }
         }

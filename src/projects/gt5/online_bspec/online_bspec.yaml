@@ -12,6 +12,7 @@ files_to_compile:
     project_component: true
   - name: online_bspec.ad
     is_main: true
+  - name: OnlineBSpecRoot.ad
   - name: RemoteModeRoot.ad
   - name: FriendSelectPopup.ad
   - name: DriverSelectPopup.ad

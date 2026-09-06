@@ -1,4 +1,4 @@
-module OnlineBSpecRoot
+module ROOT
 {
     hidden.visible = false;
     attribute watcher;
@@ -8,7 +8,7 @@ module OnlineBSpecRoot
         method onFocusEnter(context, event)
         {
             var w = event.widget;
-            var localized_text = context.translate(OnlineBSpecRoot, "RemoteRace", w.name.upcase());
+            var localized_text = context.translate(ROOT, "RemoteRace", w.name.upcase());
             BalloonTip.set_value(context, w, localized_text, 0);
 
             return EVENTRESULT_FILTER;
@@ -25,7 +25,7 @@ module OnlineBSpecRoot
     {
         var request = OnlineBSpec.requestBeginEntry(driver["driver_id"], function (args) {});
 
-        if (Grim2Util::__deprecated__join__(context, request) && 0 != OnlineBSpec.decodeResult(request))
+        if (Grim2Util::__deprecated__join__(context, request) && OnlineBSpec.decodeResult(request) != 0)
             return true;
         else
             return false;
@@ -35,7 +35,7 @@ module OnlineBSpecRoot
     {
         var request = OnlineBSpec.requestEndEntry(driver["driver_id"], function (args) {});
 
-        if (Grim2Util::__deprecated__join__(context, request) && 0 != OnlineBSpec.decodeResult(request))
+        if (Grim2Util::__deprecated__join__(context, request) && OnlineBSpec.decodeResult(request) != 0)
             return true;
         else
             return false;
@@ -44,14 +44,14 @@ module OnlineBSpecRoot
     function startRace(context, auto_save)
     {
         |var my_driver_list, var your_driver_list| = getEntryDriverList(context);
-        if (0 == my_driver_list.size)
+        if (my_driver_list.size == 0)
         {
-            ERROR(context, OnlineBSpecRoot, "ERROR_NO_ENTRY_MYSELF");
+            ERROR(context, ROOT, "ERROR_NO_ENTRY_MYSELF");
             return;
         }
-        if (0 == your_driver_list.size)
+        if (your_driver_list.size == 0)
         {
-            ERROR(context, OnlineBSpecRoot, "ERROR_NO_ENTRY_FRIENDS");
+            ERROR(context, ROOT, "ERROR_NO_ENTRY_FRIENDS");
             return;
         }
 
@@ -70,7 +70,7 @@ module OnlineBSpecRoot
         for (var it = list.first; it != nil; it = it.next_widget)
         {
             var item_w = it;
-            if (nil != item_w.driver)
+            if (item_w.driver != nil)
             {
                 if (item_w.OnlineId::Button::Me.visible)
                     my_driver_list.push(item_w.driver);
@@ -90,7 +90,7 @@ module OnlineBSpecRoot
 
     method open(context)
     {
-        SequenceUtil::startPage(context, OnlineBSpecRoot);
+        SequenceUtil::startPage(context, ROOT);
     }
 
     method close(context)
@@ -101,23 +101,24 @@ module OnlineBSpecRoot
     method onInitialize(context)
     {
         ButtonHelpGT5.set(context, [
-            [ButtonHelpGT5.getEnterButtonName(), context.translate(OnlineBSpecRoot, "Component", "Enter")], 
-            [ButtonHelpGT5.getCancelButtonName(), context.translate(OnlineBSpecRoot, "Component", "Cancel")]
+            [ButtonHelpGT5.getEnterButtonName(), context.translate(ROOT, "Component", "Enter")], 
+            [ButtonHelpGT5.getCancelButtonName(), context.translate(ROOT, "Component", "Cancel")]
         ]);
 
         EventSelect.gp_list = nil;
         if (PROJECT.history['waiting_mode'])
+        {
             context.pushEvent(menu::MFunctionEvent(forceRemoteMode, context));
-
+        }
         else
         {
             EventSelect.initialize(context);
             EventSelect.show(context, true);
             RaceEntry.show(context, false);
-            OnlineBSpecRoot.setFocus(EventSelect::Bar::Exit);
+            ROOT.setFocus(EventSelect::Bar::Exit);
         }
 
-        if (nil == self.watcher)
+        if (self.watcher == nil)
             self.watcher = WatcherUtil::Create(context, onTick, (60 * 60) * 10);
 
         SoundUtil::MenuBGMCrossfadeGroup("menu", 0.0, 3.0, true);
@@ -130,7 +131,7 @@ module OnlineBSpecRoot
 
     method onTick(context)
     {
-        if (nil == self.watcher)
+        if (self.watcher == nil)
             return;
 
         Grim2.requestExtendSession(function (args) {});
@@ -138,7 +139,7 @@ module OnlineBSpecRoot
 
     method onFinalize(context)
     {
-        if (nil != self.watcher)
+        if (self.watcher != nil)
         {
             WatcherUtil::Delete(self.watcher);
             self.watcher = nil;
@@ -150,7 +151,7 @@ module OnlineBSpecRoot
     method onCancel(context)
     {
         main::sound.play("cancel");
-        OnlineBSpecRoot.setFocus(EventSelect::Bar::Exit);
+        ROOT.setFocus(EventSelect::Bar::Exit);
         return EVENTRESULT_FILTER;
     }
 
@@ -192,7 +193,6 @@ module OnlineBSpecRoot
 
                     var event_id = event["id"];
                     var request2 = EventRace2.requestGameParameterList(event_id, function (args) {});
-
                     if (Grim2Util::__deprecated__join__(context, request2))
                     {
                         var xml = EventRace2.getGameParameterList(event_id);
@@ -205,11 +205,11 @@ module OnlineBSpecRoot
             ListBox.setItemCount(self.gp_list.size);
             Bspec.initialize(context);
 
-            if (0 == self.gp_list.size)
+            if (self.gp_list.size == 0)
             {
                 context.pushEvent(menu::MFunctionEvent(function (context) 
                 {
-                    ERROR(context, OnlineBSpecRoot, "ERROR_EVENT_NOT_FOUND");
+                    ERROR(context, ROOT, "ERROR_EVENT_NOT_FOUND");
                 }, context));
             }
         }
@@ -265,13 +265,13 @@ module OnlineBSpecRoot
             method onActivate(context)
             {
                 var item = self.getItemWidget(self.focus_index);
-                if (nil != item)
+                if (item != nil)
                 {
                     main::sound.play("ok");
                     EventSelect.show(context, false);
                     RaceEntry.initialize(context, item.gp, item.course_info);
                     RaceEntry.show(context, true);
-                    OnlineBSpecRoot.setFocus(RaceEntry::Buttons::Close);
+                    ROOT.setFocus(RaceEntry::Buttons::Close);
                 }
 
                 return EVENTRESULT_FILTER;
@@ -299,7 +299,7 @@ module OnlineBSpecRoot
                 method onActivate(context)
                 {
                     main::sound.play("return");
-                    OnlineBSpecRoot.close(context);
+                    ROOT.close(context);
 
                     return EVENTRESULT_FILTER;
                 }
@@ -329,12 +329,12 @@ module OnlineBSpecRoot
                 var w = event.widget;
                 var label = "";
 
-                if ("RemoteMode" == w.name)
+                if (w.name == "RemoteMode")
                     label = "START_WAITING";
-                else if ("Result" == w.name)
+                else if (w.name == "Result")
                     label = "SHOW_RESULT";
 
-                var localized_text = context.translate(OnlineBSpecRoot, "RemoteRace", label);
+                var localized_text = context.translate(ROOT, "RemoteRace", label);
                 BalloonTip.set_value(context, w, localized_text, 0);
 
                 return EVENTRESULT_FILTER;
@@ -350,10 +350,10 @@ module OnlineBSpecRoot
             {
                 method onActivate(context)
                 {
-                    if (nil == EventSelect.gp_list || 0 == EventSelect.gp_list.size)
+                    if (EventSelect.gp_list == nil || EventSelect.gp_list.size == 0)
                     {
                         main::sound.play("disable");
-                        ERROR(context, OnlineBSpecRoot, "ERROR_EVENT_NOT_FOUND");
+                        ERROR(context, ROOT, "ERROR_EVENT_NOT_FOUND");
                     }
                     else
                     {
@@ -381,10 +381,10 @@ module OnlineBSpecRoot
                         if (summary_list.size > 0)
                             UserProfileProject::RemoteRaceResultListPopup.open(context, summary_list, user_id);
                         else
-                            OK(context, OnlineBSpecRoot, "NO_RESULT_LIST");
+                            OK(context, ROOT, "NO_RESULT_LIST");
                     }
                     else
-                        ERROR(context, OnlineBSpecRoot, "NO_RESULT_LIST");
+                        ERROR(context, ROOT, "NO_RESULT_LIST");
 
                     return EVENTRESULT_FILTER;
                 }
@@ -407,8 +407,8 @@ module OnlineBSpecRoot
             Menu::Info::ImageFaceLogo.image_path = "piece/course_logo_S/%{course_info.logo}.img";
             Menu::Info::ImageFaceMap.image_path = "piece/course_map_M/%{course_info.map}.img";
             Menu::Info::ImageFaceTime.image_path = "image/gt5/online_bspec/time_%{estimate_minute}.dds";
-            Menu::Course::TextFace.text = context.translate(OnlineBSpecRoot, "CourseName", course_info.name);
-            Menu::Lap::TextFace.text = "%d %s".format(event.race_parameter.race_limit_laps, context.translate(OnlineBSpecRoot, "RemoteRace", "FORMAT_ESTIMATE_MINUTES").build(estimate_minute));
+            Menu::Course::TextFace.text = context.translate(ROOT, "CourseName", course_info.name);
+            Menu::Lap::TextFace.text = "%d %s".format(event.race_parameter.race_limit_laps, context.translate(ROOT, "RemoteRace", "FORMAT_ESTIMATE_MINUTES").build(estimate_minute));
             Menu::EntryMax::TextFace.text = event.race_parameter.entry_max;
 
             if (event.entry_set.entry_generate.cars.size > 0)
@@ -416,7 +416,7 @@ module OnlineBSpecRoot
                 var main_car = event.entry_set.entry_generate.cars[0];
 
                 Menu::Car::TextFaceCar.text = gtengine::MSpecDB::getCarShortName(main_car.label);
-                Menu::Car::TextFaceDealer.text = context.translate(OnlineBSpecRoot, "TunerName", gtengine::MSpecDB::getTunerLabel(main_car.label));
+                Menu::Car::TextFaceDealer.text = context.translate(ROOT, "TunerName", gtengine::MSpecDB::getTunerLabel(main_car.label));
 
                 var cp = gtengine::MCarParameter(main_car.label);
                 var color = gtengine::MSpecDB::getCarVariationFlag(main_car.label, 1);
@@ -450,13 +450,13 @@ module OnlineBSpecRoot
                 self.List::Body.last.visible = true;
 
             if (entry_max == my_driver_list.size + your_driver_list.size)
-                OnlineBSpecRoot.setFocus(self.Buttons::StartRace);
+                ROOT.setFocus(self.Buttons::StartRace);
         }
 
         method onCancel(context)
         {
             main::sound.play("cancel");
-            OnlineBSpecRoot.setFocus(Buttons::Close);
+            ROOT.setFocus(Buttons::Close);
 
             return EVENTRESULT_FILTER;
         }
@@ -468,7 +468,7 @@ module OnlineBSpecRoot
                 method onActivate(context)
                 {
                     main::sound.play("ok");
-                    UserProfileProject::EnemyCarListPopup.open(context, RaceEntry.gp.event, context.translate(OnlineBSpecRoot, "RemoteRace", "CAR_LIST"));
+                    UserProfileProject::EnemyCarListPopup.open(context, RaceEntry.gp.event, context.translate(ROOT, "RemoteRace", "CAR_LIST"));
 
                     return EVENTRESULT_FILTER;
                 }
@@ -504,7 +504,7 @@ module OnlineBSpecRoot
                 {
                     main::sound.play("next");
                     PROJECT.history['waiting_mode'] = RaceEntry::Menu::Waiting::CheckBox.active;
-                    var auto_save = OnlineBSpecRoot::RaceEntry::Menu::Replay::CheckBox.active;
+                    var auto_save = ROOT::RaceEntry::Menu::Replay::CheckBox.active;
                     startRace(context, auto_save);
 
                     return EVENTRESULT_FILTER;
@@ -520,7 +520,7 @@ module OnlineBSpecRoot
                     |var my_driver_list, var your_driver_list| = getEntryDriverList(context);
                     if (my_driver_list.size > 0 || your_driver_list.size > 0)
                     {
-                        if (!QUERY(context, OnlineBSpecRoot, "QUERY_DELETE_DRIVER"))
+                        if (!QUERY(context, ROOT, "QUERY_DELETE_DRIVER"))
                             return EVENTRESULT_FILTER;
 
                         foreach (var driver in my_driver_list)
@@ -532,7 +532,7 @@ module OnlineBSpecRoot
 
                     EventSelect.show(context, true);
                     RaceEntry.show(context, false);
-                    OnlineBSpecRoot.setFocus(EventSelect::Bar::Exit);
+                    ROOT.setFocus(EventSelect::Bar::Exit);
                 }
 
                 method onActivate(context)
@@ -571,9 +571,9 @@ module OnlineBSpecRoot
                 Body::Info::ImageFaceLogo.image_path = "piece/course_logo_S/%{course_info.logo}.img";
                 Body::Info::ImageFaceMap.image_path = "piece/course_map_M/%{course_info.map}.img";
                 Body::Info::ImageFaceTime.image_path = "image/gt5/online_bspec/time_%{estimate_minute}.dds";
-                Body::Course::TextFace.text = context.translate(OnlineBSpecRoot, "CourseName", course_info.name);
+                Body::Course::TextFace.text = context.translate(ROOT, "CourseName", course_info.name);
                 Body::Lap::TextFace.text = event.race_parameter.race_limit_laps;
-                Body::Lap::TextFace.text = "%d %s".format(event.race_parameter.race_limit_laps, context.translate(OnlineBSpecRoot, "RemoteRace", "FORMAT_ESTIMATE_MINUTES").build(estimate_minute));
+                Body::Lap::TextFace.text = "%d %s".format(event.race_parameter.race_limit_laps, context.translate(ROOT, "RemoteRace", "FORMAT_ESTIMATE_MINUTES").build(estimate_minute));
                 Body::EntryMax::TextFace.text = event.race_parameter.entry_max;
 
                 if (event.entry_set.entry_generate.cars.size > 0)
@@ -581,7 +581,7 @@ module OnlineBSpecRoot
                     var main_car = event.entry_set.entry_generate.cars[0];
 
                     Body::Car::TextFaceCar.text = gtengine::MSpecDB::getCarShortName(main_car.label);
-                    Body::Car::TextFaceDealer.text = context.translate(OnlineBSpecRoot, "TunerName", gtengine::MSpecDB::getTunerLabel(main_car.label));
+                    Body::Car::TextFaceDealer.text = context.translate(ROOT, "TunerName", gtengine::MSpecDB::getTunerLabel(main_car.label));
 
                     var cp = gtengine::MCarParameter(main_car.label);
                     var color = gtengine::MSpecDB::getCarVariationFlag(main_car.label, 1);
@@ -604,14 +604,16 @@ module OnlineBSpecRoot
                 var avatar_helmet_id = dp.head_color_code;
 
                 self.ImageFace.image_path = ThumbnailUtil::Avatar::getImagePath(
-                    ThumbnailUtil::Avatar::Genre::SIMPLE, ThumbnailUtil::Avatar::Type::MET, 
-                    "M", dp.head_code, dp.head_color_code, 
+                    ThumbnailUtil::Avatar::Genre::SIMPLE, 
+                    ThumbnailUtil::Avatar::Type::MET, 
+                    "M", 
+                    dp.head_code, dp.head_color_code, 
                     dp.body_code, dp.body_color_code
                 );
 
                 var condition = dp.growth_parameter.condition;
-                var condition_id = 2;
 
+                var condition_id = 2;
                 if (condition > 8)
                     condition_id = 1;
                 else if (condition < -8)
@@ -640,18 +642,16 @@ module OnlineBSpecRoot
 
                 var country = "";
                 if (is_me)
-                    country = NP.getRegionName();
-
-                else
                 {
-                    if ("" != user_id)
-                        country = self.driver["country"];
+                    country = NP.getRegionName();
                 }
+                else if (user_id != "")
+                    country = self.driver["country"];
 
                 self.OnlineId::ImageFace.image_path = "piece/flag_ranking/%{country}.img";
                 self.Driver::TextFace.text = driver_name;
 
-                if (nil != driver_level)
+                if (driver_level != nil)
                     self.Class::TextFace.text = driver_level;
             }
 
@@ -695,17 +695,17 @@ module OnlineBSpecRoot
                     if (Grim2Util::__deprecated__join__(context, request))
                         driver_list = OnlineBSpec.decodeDriverList(request);
 
-                    if (0 == driver_list.size)
-                        ERROR(context, OnlineBSpecRoot, "ERROR_DRIVER_NOT_FOUND");
+                    if (driver_list.size == 0)
+                        ERROR(context, ROOT, "ERROR_DRIVER_NOT_FOUND");
 
                     else
                     {
                         var x = self.OnlineId::TextFace.sx;
                         var y = self.OnlineId::TextFace.sy;
                         var select_driver_list = DriverSelectPopup.open(context, user_id, x, y, driver_list, DriverSelectPopup::Mode::SINGLE);
-                        if (nil != select_driver_list)
+                        if (select_driver_list != nil)
                         {
-                            if (nil != self.driver)
+                            if (self.driver != nil)
                                 endEntry(context, self.driver);
                         
                             var driver0 = select_driver_list[0];
@@ -719,13 +719,12 @@ module OnlineBSpecRoot
                                 self.Class::TextFaceA.text = self.driver["level"];
                             }
                             else
-                                ERROR1(context, OnlineBSpecRoot, "ERROR_ENTRY_FAILED", driver0["name"]);
+                                ERROR1(context, ROOT, "ERROR_ENTRY_FAILED", driver0["name"]);
 
                             RaceEntry.updateStatus(context);
                         }
                     }
                 }
-
                 else if (self.OnlineId::Button::Add.visible)
                 {
                     var entry_max = RaceEntry.gp.event.race_parameter.entry_max;
@@ -733,23 +732,23 @@ module OnlineBSpecRoot
 
                     if (friend_entry_count >= entry_max - 1)
                     {
-                        ERROR(context, OnlineBSpecRoot, "ERROR_ENTRY_MAX_OVER");
+                        ERROR(context, ROOT, "ERROR_ENTRY_MAX_OVER");
                         return EVENTRESULT_FILTER;
                     }
 
                     var friend_list = getFriendList(context);
-                    if (0 == friend_list.size)
+                    if (friend_list.size == 0)
                     {
-                        ERROR(context, OnlineBSpecRoot, "ERROR_FRIEND_NOT_FOUND");
+                        ERROR(context, ROOT, "ERROR_FRIEND_NOT_FOUND");
                         return EVENTRESULT_FILTER;
                     }
 
                     var x = self.OnlineId::TextFace.sx;
                     var y = self.OnlineId::TextFace.sy;
                     var select_max = (entry_max - 1) - friend_entry_count;
-                    var driver_list = FriendSelectPopup.open(context, x, y, select_max, friend_list);
 
-                    if (nil != driver_list)
+                    var driver_list = FriendSelectPopup.open(context, x, y, select_max, friend_list);
+                    if (driver_list != nil)
                     {
                         var failed_list = [];
 
@@ -771,13 +770,12 @@ module OnlineBSpecRoot
                         RaceEntry.updateStatus(context);
 
                         if (failed_list.size)
-                            ERROR1(context, OnlineBSpecRoot, "ERROR_ENTRY_FAILED", failed_list.join("\n"));
+                            ERROR1(context, ROOT, "ERROR_ENTRY_FAILED", failed_list.join("\n"));
                     }
                 }
-
                 else if (self.OnlineId::Button::Delete.visible)
                 {
-                    if (QUERY(context, OnlineBSpecRoot, "QUERY_DELETE_DRIVER"))
+                    if (QUERY(context, ROOT, "QUERY_DELETE_DRIVER"))
                     {
                         var res = endEntry(context, self.driver);
                         if (res)
@@ -785,7 +783,7 @@ module OnlineBSpecRoot
                             var next_widget = self.next_widget;
                             self.parent.removeChild(self);
                             RaceEntry.updateStatus(context);
-                            OnlineBSpecRoot.setFocus(next_widget);
+                            ROOT.setFocus(next_widget);
                         }
                     }
                 }

@@ -15,7 +15,7 @@ module ROOT
 
     function setPhotoImage(context, photo_id, image_face)
     {
-        if ("" == photo_id)
+        if (photo_id == "")
         {
             image_face.image_path = "";
             return;
@@ -23,7 +23,9 @@ module ROOT
 
         var image_path = Photo.getImagePath(photo_id);
         if (pdistd::Exist(image_path))
+        {
             image_face.image_path = image_path;
+        }
         else
         {
             Photo.requestImage(photo_id, function (args) 
@@ -37,7 +39,8 @@ module ROOT
 
     method open(context, x, y, select_max, friend_list)
     {
-        x = 348;
+        x = 348; // ?
+
         self.position_x = x;
         self.position_y = y;
         self.select_max = select_max;
@@ -61,7 +64,7 @@ module ROOT
 
         FadeActor.on_effect_end = function (context) 
         {
-            if (nil != ROOT.popup)
+            if (ROOT.popup != nil)
             {
                 ROOT.popup.close();
                 ROOT.popup = nil;
@@ -109,16 +112,15 @@ module ROOT
                 self.friend_list = [];
                 self.setItemCount(0);
                 self.setItemTemplate(context, hidden::Item);
-                var list = ROOT.friend_list;
 
+                var list = ROOT.friend_list;
                 list.sort(function (a, b) 
                 {
                     return a.upcase() < b.upcase();
                 });
-
                 self.setItemCount(list.size);
-                var focus_index = 0;
 
+                var focus_index = 0;
                 foreach (var user_id in list)
                 {
                     if (ROOT::selected_user_id == user_id)
@@ -129,8 +131,8 @@ module ROOT
 
                     ++focus_index;
                 }
-
                 self.friend_list = list;
+
                 var size = self.friend_list.size;
                 if (size >= 9)
                 {
@@ -166,8 +168,7 @@ module ROOT
                         if (item == nil)
                         {
                             item = self.getItemWidget(i, context);
-                            item.initialize(context, self.friend_list[i], i == self.focus_index, 
-                            i == self.getItemCount() - 1);
+                            item.initialize(context, self.friend_list[i], i == self.focus_index, i == self.getItemCount() - 1);
                         }
                     }
                     else
@@ -201,7 +202,7 @@ module ROOT
                     return EVENTRESULT_FILTER;
 
                 var item = self.getItemWidget(self.focus_index);
-                if (nil == item || nil == item.user_profile)
+                if (item == nil || item.user_profile == nil)
                     return EVENTRESULT_FILTER;
 
                 var user_id = item.user_id;
@@ -211,18 +212,19 @@ module ROOT
                 if (Grim2Util::__deprecated__join__(context, request))
                     driver_list = OnlineBSpec.decodeDriverList(request);
 
-                if (0 == driver_list.size)
+                if (driver_list.size == 0)
+                {
                     ERROR(context, ROOT, "ERROR_DRIVER_NOT_FOUND");
+                }
                 else
                 {
                     var x = item.sx + self.w;
                     var y = item.sy - 56;
-
                     if (y < 0)
                         y = 0;
 
                     var select_driver_list = DriverSelectPopup.open(context, item.user_id, x, y, driver_list, DriverSelectPopup::Mode::MULTI, ROOT.select_max);
-                    if (nil != select_driver_list)
+                    if (select_driver_list != nil)
                     {
                         foreach (var driver in select_driver_list)
                         {
@@ -251,6 +253,7 @@ module ROOT
             method updateUserProfile(context, u)
             {
                 self.user_profile = u;
+
                 |var r, var g, var b| = GAME_STATUS.user_profile.context.getMenuColor(u["menu_color"]);
                 var color = menu::MColorObject(r / 255.0, g / 255.0, b / 255.0, 1.0);
                 self.Body::Icon::Image.bg.setColor(color)
@@ -270,8 +273,8 @@ module ROOT
                 self.Body::Info::Level::Bspec::TextFace.text = "";
 
                 self.breakline.visible = !is_last;
-                var me = self;
 
+                var me = self;
                 OnlineBSpec.requestDriverList(user_id, function (args) 
                 {
                     |var context, var request| = args;
@@ -283,14 +286,14 @@ module ROOT
                 });
 
                 var u = ROOT.user_profile_map[user_id];
-                if (nil == u)
+                if (u == nil)
                 {
                     UserProfile2.requestUserProfile(user_id, function (args) 
                     {
                         |var context, var request| = args;
                         if (request.isDone())
                         {
-                            if (nil != ROOT.user_profile_map)
+                            if (ROOT.user_profile_map != nil)
                             {
                                 var u = UserProfile2.decodeUserProfile(request);
                                 ROOT.user_profile_map[user_id] = u;

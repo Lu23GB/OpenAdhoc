@@ -132,7 +132,7 @@ module PROJECT
         var course_info = CourseData::getCourseInfo(gp0.event.track.course_code);
         GAME_STATUS.user_profile.context.clearOnlineBSpec();
 
-        if (nil != plan_id)
+        if (plan_id != nil)
             GAME_STATUS.user_profile.context.online_bspec.plan_id = plan_id;
 
         var dp_list = [];
@@ -202,9 +202,4 @@ module PROJECT
 
         GameParameterUtil::execute(context, gp0, nil, nil, nil, user_id_list);
     }
-}
-
-module PROJECT
-{
-    #include "projects/gt5/online_bspec/OnlineBSpecRoot.ad"
 }
